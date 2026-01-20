@@ -3,7 +3,6 @@ package cn.liboshuai.scratch.flink.mini.task;
 
 import cn.liboshuai.scratch.flink.mini.mailbox.MailboxDefaultAction;
 import cn.liboshuai.scratch.flink.mini.mailbox.MailboxProcessor;
-import cn.liboshuai.scratch.flink.mini.netty.MiniInputGate;
 import cn.liboshuai.scratch.flink.mini.netty.NetworkBuffer;
 import lombok.extern.slf4j.Slf4j;
 

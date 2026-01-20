@@ -2,7 +2,7 @@ package cn.liboshuai.scratch.flink.mini;
 
 
 import cn.liboshuai.scratch.flink.mini.checkpoint.CheckpointScheduler;
-import cn.liboshuai.scratch.flink.mini.netty.MiniInputGate;
+import cn.liboshuai.scratch.flink.mini.task.MiniInputGate;
 import cn.liboshuai.scratch.flink.mini.netty.NettyClient;
 import cn.liboshuai.scratch.flink.mini.netty.NettyProtocol;
 import cn.liboshuai.scratch.flink.mini.netty.NettyServer;

@@ -1,5 +1,6 @@
 package cn.liboshuai.scratch.flink.mini.netty;
 
+import cn.liboshuai.scratch.flink.mini.task.MiniInputGate;
 import io.netty.channel.ChannelHandler;
 
 /**
