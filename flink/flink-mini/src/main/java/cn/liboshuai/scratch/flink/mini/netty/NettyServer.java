@@ -1,5 +1,4 @@
-package cn.liboshuai.scratch.flink.mini;
-
+package cn.liboshuai.scratch.flink.mini.netty;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelInitializer;
@@ -10,18 +9,16 @@ import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import lombok.extern.slf4j.Slf4j;
 
-/**
- * 模拟 Flink 的 NettyServer
- */
 @Slf4j
 public class NettyServer {
-
     private final int port;
+    private final NettyProtocol protocol;
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
 
-    public NettyServer(int port) {
+    public NettyServer(int port, NettyProtocol protocol) {
         this.port = port;
+        this.protocol = protocol;
     }
 
     public void start() {
@@ -34,10 +31,7 @@ public class NettyServer {
                     .childHandler(new ChannelInitializer<SocketChannel>() {
                         @Override
                         protected void initChannel(SocketChannel ch) {
-                            // 添加编解码器和业务 Handler
-                            ch.pipeline().addLast(new NettyMessage.MessageDecoder());
-                            ch.pipeline().addLast(new NettyMessage.MessageEncoder());
-                            ch.pipeline().addLast(new PartitionRequestServerHandler());
+                            ch.pipeline().addLast(protocol.getServerChannelHandlers());
                         }
                     })
                     .option(ChannelOption.SO_BACKLOG, 128)

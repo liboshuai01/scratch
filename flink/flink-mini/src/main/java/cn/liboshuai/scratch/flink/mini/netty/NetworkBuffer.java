@@ -1,4 +1,4 @@
-package cn.liboshuai.scratch.flink.mini;
+package cn.liboshuai.scratch.flink.mini.netty;
 
 
 import java.nio.charset.StandardCharsets;

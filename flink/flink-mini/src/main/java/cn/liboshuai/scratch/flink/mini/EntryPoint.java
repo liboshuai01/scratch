@@ -1,6 +1,12 @@
 package cn.liboshuai.scratch.flink.mini;
 
 
+import cn.liboshuai.scratch.flink.mini.checkpoint.CheckpointScheduler;
+import cn.liboshuai.scratch.flink.mini.netty.MiniInputGate;
+import cn.liboshuai.scratch.flink.mini.netty.NettyClient;
+import cn.liboshuai.scratch.flink.mini.netty.NettyProtocol;
+import cn.liboshuai.scratch.flink.mini.netty.NettyServer;
+import cn.liboshuai.scratch.flink.mini.task.CounterStreamTask;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -18,15 +24,13 @@ public class EntryPoint {
 
         int port = 9091;
 
-        // 1. 初始化 InputGate
+        // 在 EntryPoint 中使用的新方式：
         MiniInputGate inputGate = new MiniInputGate();
+        NettyProtocol protocol = new NettyProtocol(inputGate);
 
-        // 2. 启动服务端 (模拟上游 TM)
-        NettyServer server = new NettyServer(port);
+        NettyServer server = new NettyServer(port, protocol);
         new Thread(server::start).start();
-
-        // 3. 启动客户端 (模拟本 TM 网络层)
-        NettyClient client = new NettyClient("127.0.0.1", port, inputGate);
+        NettyClient client = new NettyClient("127.0.0.1", port, protocol);
         client.start();
 
         // 4. 构建 Task
