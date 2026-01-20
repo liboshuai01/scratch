@@ -10,7 +10,7 @@ import lombok.extern.slf4j.Slf4j;
  * 2. 演示了标准的 Flink Mailbox 定时器模式：Timer线程 -> Mailbox -> Main线程。
  */
 @Slf4j
-public class CounterStreamTask extends StreamTask implements DataOutput {
+public class CounterStreamTask extends StreamTask implements StreamInputProcessor.DataOutput {
 
     private final StreamInputProcessor inputProcessor;
     private long recordCount = 0;
