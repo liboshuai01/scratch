@@ -89,12 +89,12 @@ public class FutureUtils {
 
         @Override
         public int getNumFuturesTotal() {
-            return 0;
+            return this.numTotal;
         }
 
         @Override
         public int getNumFuturesCompleted() {
-            return 0;
+            return this.numCompleted.get();
         }
     }
 
