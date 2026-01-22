@@ -11,6 +11,7 @@
     <packaging>pom</packaging>
     <modules>
         <module>flink</module>
+        <module>tmp</module>
     </modules>
 
     <properties>

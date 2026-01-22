@@ -5,47 +5,45 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>cn.liboshuai.scratch</groupId>
-        <artifactId>flink</artifactId>
+        <artifactId>scratch</artifactId>
         <version>1.0-SNAPSHOT</version>
     </parent>
 
-    <artifactId>flink-mini</artifactId>
+    <artifactId>tmp</artifactId>
 
     <properties>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
+        <logback-version>1.2.12</logback-version>
+        <lombok-version>1.18.30</lombok-version>
+        <junit-version>5.8.2</junit-version>
     </properties>
 
     <dependencies>
-        <!-- 日志 -->
+        <!-- logback -->
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
-            <version>1.2.12</version>
+            <version>${logback-version}</version>
+            <scope>compile</scope>
         </dependency>
 
-        <!-- Lombok -->
+        <!-- lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
-            <optional>true</optional>
-            <version>1.18.30</version>
-        </dependency>
-
-        <!-- Netty -->
-        <dependency>
-            <groupId>io.netty</groupId>
-            <artifactId>netty-all</artifactId>
-            <version>4.1.70.Final</version>
+            <version>${lombok-version}</version>
+            <scope>provided</scope>
         </dependency>
 
         <!-- junit -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
-            <version>5.8.2</version>
+            <version>${junit-version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
