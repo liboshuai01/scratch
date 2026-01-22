@@ -73,14 +73,14 @@ public class FutureUtils {
         }
 
         @SuppressWarnings("unchecked")
-        public ResultConjunctFuture(Collection<? extends CompletableFuture<T>> futures) {
+        public ResultConjunctFuture(Collection<? extends CompletableFuture<? extends T>> futures) {
             this.numTotal = futures.size();
             results = (T[]) new Object[numTotal];
             if (futures.isEmpty()) {
                 complete(Collections.EMPTY_LIST);
             } else {
                 int count = 0;
-                for (CompletableFuture<T> future : futures) {
+                for (CompletableFuture<? extends T> future : futures) {
                     int index = count++;
                     future.whenComplete((T value, Throwable throwable) -> this.handleCompletedFuture(index, value, throwable));
                 }
@@ -98,6 +98,52 @@ public class FutureUtils {
         }
     }
 
+    public static final class CompletedConjunctFuture extends ConjunctFuture<Void> {
+
+        private final Object lock = new Object();
+
+        private final int numTotal;
+        private int futuresCompleted;
+        private Throwable globalThrowable;
+
+        public CompletedConjunctFuture(Collection<? extends CompletableFuture<?>> futures) {
+            this.numTotal = futures.size();
+            if (futures.isEmpty()) {
+                complete(null);
+            } else {
+                for (CompletableFuture<?> future : futures) {
+                    future.whenComplete(this::handleCompleted);
+                }
+            }
+        }
+
+        private void handleCompleted(Object ignored, Throwable throwable) {
+            synchronized (lock) {
+                futuresCompleted++;
+                if (throwable != null) {
+                    globalThrowable = ExceptionUtils.firstOrSuppressed(throwable, globalThrowable);
+                }
+                if (numTotal == futuresCompleted) {
+                    if (globalThrowable == null) {
+                        complete(null);
+                    } else {
+                        completeExceptionally(globalThrowable);
+                    }
+                }
+            }
+        }
+
+        @Override
+        public int getNumFuturesTotal() {
+            return 0;
+        }
+
+        @Override
+        public int getNumFuturesCompleted() {
+            return 0;
+        }
+    }
+
     public static ConjunctFuture<Void> waitForAll(Collection<? extends CompletableFuture<?>> futures) {
         checkNotNull(futures, "futures");
         return new WaitingConjunctFuture(futures);
@@ -106,5 +152,10 @@ public class FutureUtils {
     public static <T> ConjunctFuture<Collection<T>> combineForAll(Collection<? extends CompletableFuture<T>> futures) {
         checkNotNull(futures, "futures");
         return new ResultConjunctFuture<>(futures);
+    }
+
+    public static ConjunctFuture<Void> completedForAll(Collection<? extends CompletableFuture<?>> futures) {
+        checkNotNull(futures, "futures");
+        return new CompletedConjunctFuture(futures);
     }
 }
