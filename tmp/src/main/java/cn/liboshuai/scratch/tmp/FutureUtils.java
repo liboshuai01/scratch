@@ -4,6 +4,8 @@ import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static com.google.common.base.Preconditions.checkNotNull;
+
 /**
  * 模仿Flink中的FutureUtils，以此来提升自己对于异步编程和函数式编程的能力
  */
@@ -49,5 +51,10 @@ public class FutureUtils {
         public int getNumFuturesCompleted() {
             return this.numCompleted.get();
         }
+    }
+
+    public static ConjunctFuture<Void> waitForAll(Collection<? extends CompletableFuture<?>> futures) {
+        checkNotNull(futures, "futures");
+        return new WaitingConjunctFuture(futures);
     }
 }

@@ -7,145 +7,164 @@ import org.junit.jupiter.api.Timeout;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * FutureUtils 的单元测试
- * 覆盖场景：
- * 1. 空集合边界情况
- * 2. 所有 Future 正常完成
- * 3. 单个/多个 Future 异常导致整体失败
- * 4. 进度 (Completed/Total) 统计准确性
- * 5. 异步并发场景
- */
 class FutureUtilsTest {
 
     @Test
     @DisplayName("测试空集合：应该立即完成")
-    void testEmptyFutures() {
-        FutureUtils.WaitingConjunctFuture future = new FutureUtils.WaitingConjunctFuture(Collections.emptyList());
+    void testWaitForAll_EmptyCollection() throws ExecutionException, InterruptedException {
+        FutureUtils.ConjunctFuture<Void> result = FutureUtils.waitForAll(Collections.emptyList());
 
-        assertTrue(future.isDone(), "空列表应该立即完成");
-        assertFalse(future.isCompletedExceptionally(), "不应该有异常");
-        assertDoesNotThrow(() -> future.get(), "获取结果不应抛出异常");
-        assertEquals(0, future.getNumFuturesTotal());
-        assertEquals(0, future.getNumFuturesCompleted());
+        assertTrue(result.isDone(), "空集合应立即标记为 Done");
+        assertFalse(result.isCompletedExceptionally(), "空集合不应异常");
+        assertNull(result.get(), "结果应为 null");
+        assertEquals(0, result.getNumFuturesTotal());
+        assertEquals(0, result.getNumFuturesCompleted());
     }
 
     @Test
-    @DisplayName("测试正常场景：所有 Future 成功完成")
-    void testAllFuturesSuccess() throws ExecutionException, InterruptedException {
+    @DisplayName("测试所有Future正常完成：同步场景")
+    void testWaitForAll_AllSuccess_ManualCompletion() throws ExecutionException, InterruptedException {
         CompletableFuture<String> f1 = new CompletableFuture<>();
         CompletableFuture<Integer> f2 = new CompletableFuture<>();
 
-        List<CompletableFuture<?>> futures = Arrays.asList(f1, f2);
-        FutureUtils.WaitingConjunctFuture conjunctFuture = new FutureUtils.WaitingConjunctFuture(futures);
+        FutureUtils.ConjunctFuture<Void> result = FutureUtils.waitForAll(Arrays.asList(f1, f2));
 
         // 初始状态
-        assertFalse(conjunctFuture.isDone());
-        assertEquals(2, conjunctFuture.getNumFuturesTotal());
-        assertEquals(0, conjunctFuture.getNumFuturesCompleted());
+        assertFalse(result.isDone());
+        assertEquals(2, result.getNumFuturesTotal());
+        assertEquals(0, result.getNumFuturesCompleted());
 
         // 完成第一个
         f1.complete("Hello");
-        assertFalse(conjunctFuture.isDone());
-        assertEquals(1, conjunctFuture.getNumFuturesCompleted());
+        assertFalse(result.isDone());
+        assertEquals(1, result.getNumFuturesCompleted());
 
         // 完成第二个
         f2.complete(100);
-        assertTrue(conjunctFuture.isDone());
-        assertFalse(conjunctFuture.isCompletedExceptionally());
-        assertEquals(2, conjunctFuture.getNumFuturesCompleted());
-
-        // 验证结果
-        assertNull(conjunctFuture.get(), "WaitingConjunctFuture 的结果应该是 null");
+        assertTrue(result.isDone());
+        assertEquals(2, result.getNumFuturesCompleted());
+        assertNull(result.get());
     }
 
     @Test
-    @DisplayName("测试异常场景：只要有一个 Future 失败，整体应立即失败")
-    void testFutureFailure() {
+    @DisplayName("测试单个Future异常：结果应立即异常完成 (Fail-Fast)")
+    void testWaitForAll_OneException() {
         CompletableFuture<String> f1 = new CompletableFuture<>();
         CompletableFuture<Integer> f2 = new CompletableFuture<>();
 
-        FutureUtils.WaitingConjunctFuture conjunctFuture = new FutureUtils.WaitingConjunctFuture(Arrays.asList(f1, f2));
+        FutureUtils.ConjunctFuture<Void> result = FutureUtils.waitForAll(Arrays.asList(f1, f2));
 
-        RuntimeException ex = new RuntimeException("Flink Job Failed");
-
-        // f1 失败
+        RuntimeException ex = new RuntimeException("测试异常");
         f1.completeExceptionally(ex);
 
-        // 验证整体是否立即失败
-        assertTrue(conjunctFuture.isDone());
-        assertTrue(conjunctFuture.isCompletedExceptionally());
+        assertTrue(result.isDone());
+        assertTrue(result.isCompletedExceptionally());
 
-        ExecutionException executionException = assertThrows(ExecutionException.class, conjunctFuture::get);
+        // 验证抛出的异常是否包含原始异常
+        ExecutionException executionException = assertThrows(ExecutionException.class, result::get);
         assertEquals(ex, executionException.getCause());
-
-        // 注意：根据你的代码逻辑，异常分支没有增加 numCompleted
-        // 这里验证一下实现细节是否符合预期
-        assertEquals(0, conjunctFuture.getNumFuturesCompleted(), "根据当前实现，异常完成不计入 numCompleted");
     }
 
     @Test
-    @DisplayName("测试混合场景：异常发生后，其他 Future 继续完成不会改变结果")
-    void testMixedSuccessAndFailure() {
-        CompletableFuture<String> successFuture = new CompletableFuture<>();
-        CompletableFuture<String> failFuture = new CompletableFuture<>();
+    @DisplayName("测试多个Future异常：只体现第一个捕获到的异常")
+    void testWaitForAll_MultipleExceptions() {
+        CompletableFuture<String> f1 = new CompletableFuture<>();
+        CompletableFuture<String> f2 = new CompletableFuture<>();
 
-        FutureUtils.WaitingConjunctFuture conjunctFuture = new FutureUtils.WaitingConjunctFuture(Arrays.asList(successFuture, failFuture));
+        FutureUtils.ConjunctFuture<Void> result = FutureUtils.waitForAll(Arrays.asList(f1, f2));
 
-        // 1. 触发异常
-        failFuture.completeExceptionally(new RuntimeException("Error"));
-        assertTrue(conjunctFuture.isCompletedExceptionally());
+        RuntimeException ex1 = new RuntimeException("异常1");
+        RuntimeException ex2 = new RuntimeException("异常2");
 
-        // 2. 另一个 Future 随后成功完成
-        successFuture.complete("Success");
+        f1.completeExceptionally(ex1);
+        f2.completeExceptionally(ex2); // 即使第二个也异常，结果状态应由第一个决定
 
-        // 验证：状态依然是异常，且异常信息是第一次失败的那个
-        assertTrue(conjunctFuture.isCompletedExceptionally());
-        // 验证计数器：成功的那个依然会触发回调增加计数
-        assertEquals(1, conjunctFuture.getNumFuturesCompleted(), "后续成功的 Future 依然会增加计数器");
+        assertTrue(result.isCompletedExceptionally());
+        ExecutionException thrown = assertThrows(ExecutionException.class, result::get);
+        assertEquals(ex1, thrown.getCause());
     }
 
     @Test
-    @DisplayName("测试并发场景：多线程异步完成")
-    @Timeout(5) // 防止死锁测试一直卡住
-    void testConcurrentCompletion() throws ExecutionException, InterruptedException {
-        int count = 100;
-        ExecutorService executor = Executors.newFixedThreadPool(10);
-        List<CompletableFuture<Integer>> futures = new CopyOnWriteArrayList<>();
-
-        for (int i = 0; i < count; i++) {
-            futures.add(new CompletableFuture<>());
-        }
-
-        FutureUtils.WaitingConjunctFuture conjunctFuture = new FutureUtils.WaitingConjunctFuture(futures);
-
-        // 异步完成所有 future
-        AtomicBoolean hasError = new AtomicBoolean(false);
-        for (int i = 0; i < count; i++) {
-            final int index = i;
-            executor.submit(() -> {
+    @DisplayName("测试并发异步场景")
+    @Timeout(2)
+        // 防止测试死锁，设置2秒超时
+    void testWaitForAll_AsyncConcurrency() throws ExecutionException, InterruptedException {
+        ExecutorService executor = Executors.newFixedThreadPool(3);
+        try {
+            CompletableFuture<String> f1 = CompletableFuture.supplyAsync(() -> {
                 try {
-                    // 模拟一点随机延迟
-                    Thread.sleep((long) (Math.random() * 10));
-                    futures.get(index).complete(index);
-                } catch (Exception e) {
-                    hasError.set(true);
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
                 }
-            });
+                return "Task1";
+            }, executor);
+
+            CompletableFuture<String> f2 = CompletableFuture.supplyAsync(() -> {
+                try {
+                    Thread.sleep(50);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                return "Task2";
+            }, executor);
+
+            FutureUtils.ConjunctFuture<Void> result = FutureUtils.waitForAll(Arrays.asList(f1, f2));
+
+            // 阻塞等待结果
+            result.get();
+
+            assertTrue(result.isDone());
+            assertEquals(2, result.getNumFuturesCompleted());
+        } finally {
+            executor.shutdown();
         }
+    }
 
-        // 等待主 Future 完成
-        conjunctFuture.get();
+    @Test
+    @DisplayName("测试传入已经完成的 Future")
+    void testWaitForAll_AlreadyCompleted() throws ExecutionException, InterruptedException {
+        CompletableFuture<String> f1 = CompletableFuture.completedFuture("Done");
+        CompletableFuture<String> f2 = new CompletableFuture<>();
 
-        assertEquals(count, conjunctFuture.getNumFuturesTotal());
-        assertEquals(count, conjunctFuture.getNumFuturesCompleted());
-        assertFalse(hasError.get(), "多线程执行过程中不应抛出异常");
+        FutureUtils.ConjunctFuture<Void> result = FutureUtils.waitForAll(Arrays.asList(f1, f2));
 
-        executor.shutdown();
+        // f1 已经完成，所以 numCompleted 应该至少是 1 (取决于回调执行速度，通常是立即的)
+        // 注意：whenComplete 在当前线程立即执行回调
+        assertEquals(1, result.getNumFuturesCompleted());
+        assertFalse(result.isDone());
+
+        f2.complete("Done2");
+        assertTrue(result.isDone());
+        assertNull(result.get());
+    }
+
+    @Test
+    @DisplayName("测试参数校验：传入Null应抛出NPE")
+    void testWaitForAll_NullInput() {
+        // 因为你使用了 Guava 的 checkNotNull
+        assertThrows(NullPointerException.class, () -> FutureUtils.waitForAll(null));
+    }
+
+    @Test
+    @DisplayName("测试混合类型：Future列表包含不同泛型")
+    void testWaitForAll_MixedTypes() throws ExecutionException, InterruptedException {
+        CompletableFuture<String> f1 = CompletableFuture.completedFuture("S");
+        CompletableFuture<Double> f2 = CompletableFuture.completedFuture(1.0);
+        CompletableFuture<Object> f3 = CompletableFuture.completedFuture(new Object());
+
+        List<CompletableFuture<?>> list = Arrays.asList(f1, f2, f3);
+        FutureUtils.ConjunctFuture<Void> result = FutureUtils.waitForAll(list);
+
+        result.get();
+        assertTrue(result.isDone());
+        assertEquals(3, result.getNumFuturesTotal());
     }
 }
