@@ -272,4 +272,115 @@ class FutureUtilsTest {
             executor.shutdown();
         }
     }
+
+    @Test
+    @DisplayName("completedForAll: 测试空集合，应立即完成")
+    void testCompletedForAll_EmptyCollection() throws ExecutionException, InterruptedException {
+        FutureUtils.ConjunctFuture<Void> result = FutureUtils.completedForAll(Collections.emptyList());
+
+        assertTrue(result.isDone());
+        assertFalse(result.isCompletedExceptionally());
+        assertNull(result.get());
+    }
+
+    @Test
+    @DisplayName("completedForAll: 所有任务成功，结果应正常完成")
+    void testCompletedForAll_AllSuccess() throws ExecutionException, InterruptedException {
+        CompletableFuture<String> f1 = new CompletableFuture<>();
+        CompletableFuture<Integer> f2 = new CompletableFuture<>();
+
+        FutureUtils.ConjunctFuture<Void> result = FutureUtils.completedForAll(Arrays.asList(f1, f2));
+
+        f1.complete("A");
+        assertFalse(result.isDone(), "仅完成部分任务时，整体不应完成");
+
+        f2.complete(1);
+        assertTrue(result.isDone());
+        assertNull(result.get());
+    }
+
+    @Test
+    @DisplayName("completedForAll: 核心特性测试 - 发生异常时不立即返回，需等待所有任务结束")
+    void testCompletedForAll_WaitFailure() {
+        CompletableFuture<String> f1 = new CompletableFuture<>();
+        CompletableFuture<String> f2 = new CompletableFuture<>();
+
+        FutureUtils.ConjunctFuture<Void> result = FutureUtils.completedForAll(Arrays.asList(f1, f2));
+
+        RuntimeException ex = new RuntimeException("F1 Failed");
+
+        // 1. 让第一个任务失败
+        f1.completeExceptionally(ex);
+
+        // 【关键点】与 waitForAll 不同，这里不能立即完成（isDone 应为 false）
+        assertFalse(result.isDone(), "completedForAll 即使遇到异常，也必须等待其他 Future 结束");
+
+        // 2. 让第二个任务成功
+        f2.complete("Success");
+
+        // 3. 现在所有任务都结束了，整体状态应为完成，且为异常状态
+        assertTrue(result.isDone());
+        assertTrue(result.isCompletedExceptionally());
+
+        ExecutionException executionException = assertThrows(ExecutionException.class, result::get);
+        assertEquals(ex, executionException.getCause());
+    }
+
+    @Test
+    @DisplayName("completedForAll: 异常聚合测试 - 多个异常应被 Suppressed")
+    void testCompletedForAll_ExceptionAggregation() {
+        CompletableFuture<String> f1 = new CompletableFuture<>();
+        CompletableFuture<String> f2 = new CompletableFuture<>();
+        CompletableFuture<String> f3 = new CompletableFuture<>();
+
+        FutureUtils.ConjunctFuture<Void> result = FutureUtils.completedForAll(Arrays.asList(f1, f2, f3));
+
+        RuntimeException ex1 = new RuntimeException("Primary Exception");
+        RuntimeException ex2 = new RuntimeException("Suppressed Exception");
+
+        // 1. F1 失败
+        f1.completeExceptionally(ex1);
+        assertFalse(result.isDone());
+
+        // 2. F2 失败
+        f2.completeExceptionally(ex2);
+        assertFalse(result.isDone());
+
+        // 3. F3 成功
+        f3.complete("Success");
+
+        // 4. 所有结束，验证结果
+        assertTrue(result.isDone());
+        assertTrue(result.isCompletedExceptionally());
+
+        ExecutionException executionException = assertThrows(ExecutionException.class, result::get);
+        Throwable actualCause = executionException.getCause();
+
+        // 验证主异常是第一个抛出的 ex1
+        assertEquals(ex1, actualCause);
+
+        // 验证 ex2 被添加到了 suppressed 列表中 (依赖 ExceptionUtils 逻辑)
+        assertEquals(1, actualCause.getSuppressed().length, "应该有一个被抑制的异常");
+        assertEquals(ex2, actualCause.getSuppressed()[0], "被抑制的异常应该是 ex2");
+    }
+
+    @Test
+    @DisplayName("completedForAll: 混合已完成和未完成的 Future")
+    void testCompletedForAll_MixedState() throws ExecutionException, InterruptedException {
+        CompletableFuture<String> f1 = CompletableFuture.completedFuture("Done");
+        CompletableFuture<String> f2 = new CompletableFuture<>(); // 未完成
+        CompletableFuture<String> f3 = new CompletableFuture<>();
+        f3.completeExceptionally(new RuntimeException("Oops")); // 已完成但异常
+
+        FutureUtils.ConjunctFuture<Void> result = FutureUtils.completedForAll(Arrays.asList(f1, f2, f3));
+
+        // 因为 f2 还没完，所以整体没完
+        assertFalse(result.isDone());
+
+        // 完成 f2
+        f2.complete("Now Done");
+
+        assertTrue(result.isDone());
+        assertTrue(result.isCompletedExceptionally()); // 因为 f3 有异常
+    }
 }
