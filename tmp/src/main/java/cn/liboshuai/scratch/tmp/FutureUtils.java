@@ -1,10 +1,15 @@
 package cn.liboshuai.scratch.tmp;
 
+import com.google.common.base.Supplier;
+
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
@@ -15,6 +20,7 @@ public class FutureUtils {
 
     public abstract static class ConjunctFuture<T> extends CompletableFuture<T> {
         public abstract int getNumFuturesTotal();
+
         public abstract int getNumFuturesCompleted();
     }
 
@@ -158,4 +164,57 @@ public class FutureUtils {
         checkNotNull(futures, "futures");
         return new CompletedConjunctFuture(futures);
     }
+
+    public static class RetryException extends Exception {
+
+        private static final long serialVersionUID = 6075310037996807663L;
+
+        public RetryException(String message) {
+            super(message);
+        }
+
+        public RetryException(String message, Throwable throwable) {
+            super(message, throwable);
+        }
+
+        public RetryException(Throwable throwable) {
+            super(throwable);
+        }
+    }
+
+    public static <T> CompletableFuture<T> retry(Supplier<CompletableFuture<T>> operation, int retries, Executor executor) {
+        return retry(operation, retries, ignore -> true, executor);
+    }
+
+    public static <T> CompletableFuture<T> retry(Supplier<CompletableFuture<T>> operation, int retries, Predicate<Throwable> retryPredicate, Executor executor) {
+        CompletableFuture<T> resultFuture = new CompletableFuture<>();
+        retryOperation(resultFuture, operation, retries, retryPredicate, executor);
+        return resultFuture;
+    }
+
+    public static <T> void retryOperation(CompletableFuture<T> resultFuture, Supplier<CompletableFuture<T>> operation, int retries, Predicate<Throwable> retryPredicate, Executor executor) {
+        CompletableFuture<T> operationFuture = operation.get();
+        operationFuture.whenCompleteAsync((T value, Throwable throwable) -> {
+            if (throwable != null) {
+                if (throwable instanceof CancellationException) {
+                    resultFuture.completeExceptionally(new RetryException("Operation future was cancelled.", throwable));
+                } else {
+                    throwable = ExceptionUtils.stripExecutionException(throwable);
+                    if (retryPredicate.test(throwable)) {
+                        if (retries > 0) {
+                            retryOperation(resultFuture, operation, retries - 1, retryPredicate, executor);
+                        } else {
+                            resultFuture.completeExceptionally(new RetryException("Stopped retrying the operation because the error is not " + "retryable.", throwable));
+                        }
+                    } else {
+                        resultFuture.completeExceptionally(new RetryException("Stopped retrying the operation because the error is not " + "retryable.", throwable));
+                    }
+                }
+            } else {
+                resultFuture.complete(value);
+            }
+        }, executor);
+        resultFuture.whenComplete((T ignore, Throwable throwable) -> operationFuture.cancel(false));
+    }
+
 }
