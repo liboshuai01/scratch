@@ -191,6 +191,9 @@ public class FutureUtils {
     }
 
     public static <T> void retryOperation(CompletableFuture<T> resultFuture, Supplier<CompletableFuture<T>> operation, int retries, Predicate<Throwable> retryPredicate, Executor executor) {
+        if (resultFuture.isDone()) {
+            return;
+        }
         CompletableFuture<T> operationFuture = operation.get();
         operationFuture.whenCompleteAsync((T value, Throwable throwable) -> {
             if (throwable != null) {
@@ -236,8 +239,10 @@ public class FutureUtils {
     }
 
     private static <T> void retryOperationWithDelay(CompletableFuture<T> resultFuture, Supplier<CompletableFuture<T>> operation, RetryStrategy retryStrategy, Predicate<Throwable> retryPredicate, ScheduledExecutor scheduledExecutor) {
+        if (resultFuture.isDone()) {
+            return;
+        }
         CompletableFuture<T> operationFuture = operation.get();
-
         operationFuture.whenComplete((T value, Throwable throwable) -> {
             if (throwable != null) {
                 if (throwable instanceof CancellationException) {
@@ -245,7 +250,7 @@ public class FutureUtils {
                 } else {
                     throwable = ExceptionUtils.stripExecutionException(throwable);
                     if (retryPredicate.test(throwable)) {
-                        int numRemainingRetries = retryStrategy.getNumRemainingRetries();
+                        long numRemainingRetries = retryStrategy.getNumRemainingRetries();
                         if (numRemainingRetries > 0) {
                             Duration currentRetryDelay = retryStrategy.getCurrentRetryDelay();
                             ScheduledFuture<?> scheduledFuture = scheduledExecutor.schedule(

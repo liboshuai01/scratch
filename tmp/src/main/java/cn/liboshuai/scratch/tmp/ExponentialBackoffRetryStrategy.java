@@ -7,11 +7,11 @@ import java.time.Duration;
 
 public class ExponentialBackoffRetryStrategy implements RetryStrategy {
 
-    private final int remainingRetries;
+    private final long remainingRetries;
     private final Duration currentRetryDelay;
     private final Duration maxRetryDelay;
 
-    public ExponentialBackoffRetryStrategy(int remainingRetries, Duration currentRetryDelay, Duration maxRetryDelay) {
+    public ExponentialBackoffRetryStrategy(long remainingRetries, Duration currentRetryDelay, Duration maxRetryDelay) {
         Preconditions.checkArgument(remainingRetries >= 0, "The number of retries must be greater or equal to 0.");
         Preconditions.checkArgument(currentRetryDelay.toMillis() >= 0, "The currentRetryDelay must be positive");
         Preconditions.checkArgument(maxRetryDelay.toMillis() >= 0, "The maxRetryDelay must be positive");
@@ -21,7 +21,7 @@ public class ExponentialBackoffRetryStrategy implements RetryStrategy {
     }
 
     @Override
-    public int getNumRemainingRetries() {
+    public long getNumRemainingRetries() {
         return this.remainingRetries;
     }
 
@@ -32,7 +32,7 @@ public class ExponentialBackoffRetryStrategy implements RetryStrategy {
 
     @Override
     public RetryStrategy getNextRetryStrategy() {
-        int nextRemainRetries = remainingRetries - 1;
+        long nextRemainRetries = remainingRetries - 1;
         long nextRetryDelayMillis = Math.min(2 * currentRetryDelay.toMillis(), maxRetryDelay.toMillis());
         return new ExponentialBackoffRetryStrategy(
                 nextRemainRetries,
