@@ -369,4 +369,24 @@ public class FutureUtils {
         return resultFuture;
     }
 
+    public static CompletableFuture<Void> composeAfterwards(
+            CompletableFuture<?> future,
+            Supplier<CompletableFuture<?>> composedAction
+    ) {
+        final CompletableFuture<Void> resultFuture = new CompletableFuture<>();
+        future.whenComplete((Object ignored, Throwable throwable) -> {
+            final CompletableFuture<?> composedActionFuture = composedAction.get();
+            composedActionFuture.whenComplete((Object innerIgnored, Throwable innerThrowable) -> {
+                if (innerThrowable != null) {
+                    resultFuture.completeExceptionally(ExceptionUtils.firstOrSuppressed(innerThrowable, throwable));
+                } else if (throwable != null) {
+                    resultFuture.completeExceptionally(throwable);
+                } else {
+                    resultFuture.complete(null);
+                }
+            });
+        });
+        return resultFuture;
+    }
+
 }
