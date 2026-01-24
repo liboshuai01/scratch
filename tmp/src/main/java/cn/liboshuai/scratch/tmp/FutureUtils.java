@@ -205,7 +205,7 @@ public class FutureUtils {
                         if (retries > 0) {
                             retryOperation(resultFuture, operation, retries - 1, retryPredicate, executor);
                         } else {
-                            resultFuture.completeExceptionally(new RetryException("Stopped retrying the operation because the error is not " + "retryable.", throwable));
+                            resultFuture.completeExceptionally(new RetryException("Could not complete the operation. Number of retries has been exhausted.", throwable));
                         }
                     } else {
                         resultFuture.completeExceptionally(new RetryException("Stopped retrying the operation because the error is not " + "retryable.", throwable));
@@ -267,7 +267,7 @@ public class FutureUtils {
                             );
                             resultFuture.whenComplete((T ignore, Throwable wthrowable) -> scheduledFuture.cancel(false));
                         } else {
-                            resultFuture.completeExceptionally(new RetryException("Stopped retrying the operation because the error is not " + "retryable.", throwable));
+                            resultFuture.completeExceptionally(new RetryException("Could not complete the operation. Number of retries has been exhausted.", throwable));
                         }
                     } else {
                         resultFuture.completeExceptionally(new RetryException("Stopped retrying the operation because the error is not " + "retryable.", throwable));
