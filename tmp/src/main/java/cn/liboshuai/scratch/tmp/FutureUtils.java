@@ -2,6 +2,7 @@ package cn.liboshuai.scratch.tmp;
 
 import com.google.common.base.Predicates;
 
+import javax.annotation.Nullable;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collection;
@@ -352,9 +353,9 @@ public class FutureUtils {
     }
 
     public static CompletableFuture<Void> runAfterwardsAsync(
-        CompletableFuture<?> future,
-        RunnableWithException runnable,
-        Executor executor
+            CompletableFuture<?> future,
+            RunnableWithException runnable,
+            Executor executor
     ) {
         final CompletableFuture<Void> resultFuture = new CompletableFuture<>();
         future.whenCompleteAsync((Object ignored, Throwable throwable) -> {
@@ -415,7 +416,7 @@ public class FutureUtils {
         source.whenComplete(forwardTo(target));
     }
 
-    public static <T> BiConsumer<T,Throwable> forwardTo(CompletableFuture<T> target) {
+    public static <T> BiConsumer<T, Throwable> forwardTo(CompletableFuture<T> target) {
         return (T value, Throwable throwable) -> doForward(value, throwable, target);
     }
 
@@ -435,6 +436,68 @@ public class FutureUtils {
             future.run();
         }
         return future.get();
+    }
+
+    public static <T> CompletableFuture<T> orTimeout(
+            CompletableFuture<T> future,
+            long delay,
+            TimeUnit timeUnit,
+            @Nullable String timeoutMsg
+    ) {
+        return orTimeout(future, delay, timeUnit, Executors.directExecutor(), timeoutMsg);
+    }
+
+    public static <T> CompletableFuture<T> orTimeout(
+            CompletableFuture<T> future,
+            long delay,
+            TimeUnit timeUnit,
+            Executor timeoutFailExecutor,
+            @Nullable String timeoutMsg
+    ) {
+        if (future.isDone()) {
+            return future;
+        }
+        ScheduledFuture<?> timeoutSchedule = Delay.delay(
+                () -> timeoutFailExecutor.execute(new Timeout(future, timeoutMsg)),
+                delay,
+                timeUnit
+        );
+        future.whenComplete((T ignored, Throwable throwable) -> {
+            if (!timeoutSchedule.isDone()) {
+                timeoutSchedule.cancel(false);
+            }
+        });
+        return future;
+    }
+
+    public static final class Timeout implements Runnable {
+        private final CompletableFuture<?> future;
+        private final String timeoutMsg;
+
+        public Timeout(CompletableFuture<?> future, @Nullable String timeoutMsg) {
+            checkNotNull(future);
+            this.future = future;
+            this.timeoutMsg = timeoutMsg;
+        }
+
+        @Override
+        public void run() {
+            future.completeExceptionally(new TimeoutException(timeoutMsg));
+        }
+    }
+
+    private enum Delay {
+        ;
+        private static final ScheduledThreadPoolExecutor DELAYER = new ScheduledThreadPoolExecutor(
+                1, new ExecutorThreadFactory("FlinkCompletableFutureDelayScheduler")
+        );
+
+        private static ScheduledFuture<?> delay(Runnable runnable, long delay, TimeUnit timeUnit) {
+            checkNotNull(runnable);
+            checkNotNull(timeUnit);
+
+            return DELAYER.schedule(runnable, delay, timeUnit);
+        }
     }
 
 }
