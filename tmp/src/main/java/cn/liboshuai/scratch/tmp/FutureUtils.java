@@ -8,6 +8,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -408,6 +409,22 @@ public class FutureUtils {
 
     public static boolean isCompletedNormally(CompletableFuture<?> future) {
         return future.isDone() && !future.isCompletedExceptionally();
+    }
+
+    public static <T> void forward(CompletableFuture<T> source, CompletableFuture<T> target) {
+        source.whenComplete(forwardTo(target));
+    }
+
+    public static <T> BiConsumer<T,Throwable> forwardTo(CompletableFuture<T> target) {
+        return (T value, Throwable throwable) -> doForward(value, throwable, target);
+    }
+
+    private static <T> void doForward(T value, Throwable throwable, CompletableFuture<T> target) {
+        if (throwable != null) {
+            target.completeExceptionally(throwable);
+        } else {
+            target.complete(value);
+        }
     }
 
 }
