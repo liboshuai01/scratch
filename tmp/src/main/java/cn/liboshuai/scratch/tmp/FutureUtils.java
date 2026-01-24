@@ -357,7 +357,7 @@ public class FutureUtils {
         future.whenCompleteAsync((Object ignored, Throwable throwable) -> {
             try {
                 runnable.run();
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 throwable = ExceptionUtils.firstOrSuppressed(e, throwable);
             }
             if (throwable != null) {
