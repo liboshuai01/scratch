@@ -321,6 +321,10 @@ public class FutureUtils {
                                 TimeUnit.MILLISECONDS
                         );
                         resultFuture.whenComplete((T ignore, Throwable t) -> scheduledFuture.cancel(false));
+                    } else {
+                        resultFuture.completeExceptionally(
+                                new RetryException(
+                                        "Could not satisfy the predicate within the allowed time."));
                     }
                 } else {
                     resultFuture.complete(value);
