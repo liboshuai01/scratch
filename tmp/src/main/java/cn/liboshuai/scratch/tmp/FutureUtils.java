@@ -334,4 +334,39 @@ public class FutureUtils {
         resultFuture.whenComplete((T ignore, Throwable throwable) -> operationFuture.cancel(false));
     }
 
+    public static CompletableFuture<Void> runAfterwards(
+            CompletableFuture<?> future,
+            RunnableWithException runnable
+    ) {
+        return runAfterwardsAsync(future, runnable, Executors.directExecutor());
+    }
+
+    public static CompletableFuture<Void> runAfterwardsAsync(
+            CompletableFuture<?> future,
+            RunnableWithException runnable
+    ) {
+        return runAfterwardsAsync(future, runnable, ForkJoinPool.commonPool());
+    }
+
+    public static CompletableFuture<Void> runAfterwardsAsync(
+        CompletableFuture<?> future,
+        RunnableWithException runnable,
+        Executor executor
+    ) {
+        final CompletableFuture<Void> resultFuture = new CompletableFuture<>();
+        future.whenCompleteAsync((Object ignored, Throwable throwable) -> {
+            try {
+                runnable.run();
+            } catch (Exception e) {
+                throwable = ExceptionUtils.firstOrSuppressed(e, throwable);
+            }
+            if (throwable != null) {
+                resultFuture.completeExceptionally(throwable);
+            } else {
+                resultFuture.complete(null);
+            }
+        }, executor);
+        return resultFuture;
+    }
+
 }
