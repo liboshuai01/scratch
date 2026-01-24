@@ -1,5 +1,7 @@
 package cn.liboshuai.scratch.tmp;
 
+import com.google.common.base.Predicates;
+
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collection;
@@ -387,6 +389,25 @@ public class FutureUtils {
             });
         });
         return resultFuture;
+    }
+
+    public static <T> T checkStateAndGet(CompletableFuture<T> future) {
+        Preconditions.checkCompletedNormally(future);
+        return getWithoutException(future);
+    }
+
+    private static <T> T getWithoutException(CompletableFuture<T> future) {
+        if (isCompletedNormally(future)) {
+            try {
+                return future.get();
+            } catch (InterruptedException | ExecutionException ignored) {
+            }
+        }
+        return null;
+    }
+
+    public static boolean isCompletedNormally(CompletableFuture<?> future) {
+        return future.isDone() && !future.isCompletedExceptionally();
     }
 
 }
