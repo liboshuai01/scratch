@@ -427,4 +427,14 @@ public class FutureUtils {
         }
     }
 
+    public static <T> T ifNotDoneAndGet(RunnableFuture<T> future) throws ExecutionException, InterruptedException {
+        if (future == null) {
+            return null;
+        }
+        if (!future.isDone()) {
+            future.run();
+        }
+        return future.get();
+    }
+
 }
