@@ -396,7 +396,7 @@ public class FutureUtils {
         return getWithoutException(future);
     }
 
-    private static <T> T getWithoutException(CompletableFuture<T> future) {
+    public static <T> T getWithoutException(CompletableFuture<T> future) {
         if (isCompletedNormally(future)) {
             try {
                 return future.get();
