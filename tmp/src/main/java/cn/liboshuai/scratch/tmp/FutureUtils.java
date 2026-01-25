@@ -500,4 +500,37 @@ public class FutureUtils {
         }
     }
 
+    public static void assertNoException(CompletableFuture<?> completableFuture) {
+        handleUncaughtException(completableFuture, FatalExitExceptionHandler.INSTANCE);
+    }
+
+    private static void handleUncaughtException(CompletableFuture<?> completableFuture,
+                                                Thread.UncaughtExceptionHandler uncaughtExceptionHandler) {
+        handleUncaughtException(completableFuture, uncaughtExceptionHandler, FatalExitExceptionHandler.INSTANCE);
+    }
+
+    private static void handleUncaughtException(
+            CompletableFuture<?> completableFuture,
+            Thread.UncaughtExceptionHandler uncaughtExceptionHandler,
+            Thread.UncaughtExceptionHandler fatalErrorHandler) {
+        checkNotNull(completableFuture)
+                .whenComplete((Object ignored, Throwable throwable) -> {
+                   if (throwable != null) {
+                        final Thread currentThread = Thread.currentThread();
+                       try {
+                           uncaughtExceptionHandler.uncaughtException(currentThread, throwable);
+                       } catch (Throwable t) {
+                           final RuntimeException errorHandlerException =
+                                   new IllegalStateException(
+                                           "An error occurred while executing the error handling for a "
+                                                   + throwable.getClass().getSimpleName()
+                                                   + ".",
+                                           t);
+                           errorHandlerException.addSuppressed(throwable);
+                           fatalErrorHandler.uncaughtException(currentThread, errorHandlerException);
+                       }
+                   }
+                });
+    }
+
 }
