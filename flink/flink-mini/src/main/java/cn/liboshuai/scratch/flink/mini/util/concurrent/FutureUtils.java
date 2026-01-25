@@ -1,6 +1,10 @@
 package cn.liboshuai.scratch.flink.mini.util.concurrent;
 
+import cn.liboshuai.scratch.flink.mini.util.function.SupplierWithException;
+
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
 
 /**
  * 仿写Flink中的FutureUtils类，依次来提高自己Java异步编程和函数式编程的能力
@@ -26,6 +30,22 @@ public class FutureUtils {
         CompletableFuture<T> completableFuture = new CompletableFuture<>();
         completableFuture.completeExceptionally(throwable);
         return completableFuture;
+    }
+
+    public static <T> CompletableFuture<T> supplyAsync(
+            SupplierWithException<T, ?> supplier,
+            Executor executor
+    ) {
+        return CompletableFuture.supplyAsync(
+                () -> {
+                    try {
+                        return supplier.get();
+                    } catch (Throwable throwable) {
+                        throw new CompletionException(throwable);
+                    }
+                },
+                executor
+        );
     }
 
 }
