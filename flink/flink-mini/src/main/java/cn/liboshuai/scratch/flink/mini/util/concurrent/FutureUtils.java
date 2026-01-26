@@ -295,7 +295,7 @@ public class FutureUtils {
         return new WaitingConjunctFuture(futures);
     }
 
-    public static <T> CompletableFuture<Collection<T>> combineAll(Collection<? extends CompletableFuture<? extends T>> futures) {
+    public static <T> ConjunctFuture<Collection<T>> combineAll(Collection<? extends CompletableFuture<? extends T>> futures) {
         Preconditions.checkNotNull(futures, "futures");
         return new ResultConjunctFuture<>(futures);
     }
