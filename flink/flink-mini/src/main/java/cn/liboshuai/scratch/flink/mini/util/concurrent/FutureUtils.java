@@ -1,9 +1,13 @@
 package cn.liboshuai.scratch.flink.mini.util.concurrent;
 
 import cn.liboshuai.scratch.flink.mini.util.function.SupplierWithException;
+import com.google.common.base.Preconditions;
+import com.google.common.base.Predicates;
 
 import java.time.Duration;
+import java.util.Collection;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -283,6 +287,53 @@ public class FutureUtils {
         resultFuture.whenComplete((T ignored, Throwable throwable) -> {
             operationFuture.cancel(false);
         });
+    }
+
+    public static CompletableFuture<?> waitForAll(Collection<CompletableFuture<?>> futures) {
+        Preconditions.checkNotNull(futures, "futures");
+        return new WaitingConjunctFuture(futures);
+    }
+
+    public abstract static class ConjunctFuture<T> extends CompletableFuture<T> {
+        abstract int getNumFuturesTotal();
+        abstract int getNumFuturesCompleted();
+    }
+
+    public static class WaitingConjunctFuture extends ConjunctFuture<Void> {
+
+        private final int numTotal;
+        private final AtomicInteger numCompleted = new AtomicInteger(0);
+
+        private void handleCompletedFuture(Object ignored, Throwable throwable) {
+            if (throwable != null) {
+                completedExceptionally(throwable);
+            } else {
+                if (numTotal == numCompleted.incrementAndGet()) {
+                    complete(null);
+                }
+            }
+        }
+
+        public WaitingConjunctFuture(Collection<? extends CompletableFuture<?>> futures) {
+            this.numTotal = futures.size();
+            if (futures.isEmpty()) {
+                complete(null);
+            } else {
+                for (CompletableFuture<?> future : futures) {
+                    future.whenComplete(this::handleCompletedFuture);
+                }
+            }
+        }
+
+        @Override
+        int getNumFuturesTotal() {
+            return this.numTotal;
+        }
+
+        @Override
+        int getNumFuturesCompleted() {
+            return this.numCompleted.get();
+        }
     }
 
 }
