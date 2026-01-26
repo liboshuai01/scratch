@@ -2,10 +2,7 @@ package cn.liboshuai.scratch.flink.mini.util.concurrent;
 
 import cn.liboshuai.scratch.flink.mini.util.function.SupplierWithException;
 
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.Executor;
+import java.util.concurrent.*;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -56,9 +53,7 @@ public class FutureUtils {
             int retries,
             Executor executor
     ) {
-        CompletableFuture<T> resultFuture = new CompletableFuture<>();
-        retryOperation(resultFuture, operation, retries, throwable -> true, executor);
-        return resultFuture;
+        return retry(operation, retries, throwable -> true, executor);
     }
 
     public static <T> CompletableFuture<T> retry(
@@ -96,17 +91,16 @@ public class FutureUtils {
                     if (!retryPredicate.test(throwable)) {
                         resultFuture.completeExceptionally(
                                 new RetryException(
-                                        "Stopped retrying the operation because the error is not "
-                                                + "retryable.",
-                                        throwable)
+                                        "Stopped retrying the operation because the error is not retryable.", throwable
+                                )
                         );
                     } else {
                         if (retries <= 0) {
                             resultFuture.completeExceptionally(
                                     new RetryException(
                                             "Could not complete the operation. Number of retries "
-                                                    + "has been exhausted.",
-                                            throwable)
+                                                    + "has been exhausted.", throwable
+                                    )
                             );
                         } else {
                             retryOperation(
@@ -141,6 +135,87 @@ public class FutureUtils {
         public RetryException(Throwable throwable) {
             super(throwable);
         }
+    }
+
+    public static <T> CompletableFuture<T> retryWithDelay(
+            Supplier<CompletableFuture<T>> operation,
+            RetryStrategy retryStrategy,
+            ScheduledExecutor scheduledExecutor
+    ) {
+        return retryWithDelay(operation, retryStrategy, throwable -> true, scheduledExecutor);
+    }
+
+    public static <T> CompletableFuture<T> retryWithDelay(
+            Supplier<CompletableFuture<T>> operation,
+            RetryStrategy retryStrategy,
+            Predicate<Throwable> retryPredicate,
+            ScheduledExecutor scheduledExecutor
+    ) {
+        final CompletableFuture<T> resultFuture = new CompletableFuture<>();
+        retryOperationWithDelay(resultFuture, operation, retryStrategy, retryPredicate, scheduledExecutor);
+        return resultFuture;
+    }
+
+    public static <T> void retryOperationWithDelay(
+            CompletableFuture<T> resultFuture,
+            Supplier<CompletableFuture<T>> operation,
+            RetryStrategy retryStrategy,
+            Predicate<Throwable> retryPredicate,
+            ScheduledExecutor scheduledExecutor
+    ) {
+        if (resultFuture.isDone()) {
+            return;
+        }
+        CompletableFuture<T> operationFuture = operation.get();
+        operationFuture.whenComplete(
+                (T value, Throwable throwable) -> {
+                    if (throwable == null) {
+                        resultFuture.complete(value);
+                    } else {
+                        if (throwable instanceof CancellationException) {
+                            resultFuture.completeExceptionally(
+                                    new RetryException("Operation future was cancelled.", throwable)
+                            );
+                        } else {
+                            throwable = ExceptionUtils.stripCompletionException(throwable);
+                            if (!retryPredicate.test(throwable)) {
+                                resultFuture.completeExceptionally(
+                                        new RetryException(
+                                                "Stopped retrying the operation because the error is not retryable.", throwable
+                                        )
+                                );
+                            } else {
+                                int remainingRetries = retryStrategy.getNumRemainingRetries();
+                                if (remainingRetries <= 0) {
+                                    resultFuture.completeExceptionally(
+                                            new RetryException(
+                                                    "Could not complete the operation. Number of retries "
+                                                            + "has been exhausted.", throwable
+                                            )
+                                    );
+                                } else {
+                                    ScheduledFuture<?> scheduledFuture = scheduledExecutor.schedule(
+                                            () -> retryOperationWithDelay(
+                                                    resultFuture,
+                                                    operation,
+                                                    retryStrategy.getNextRetryStrategy(),
+                                                    retryPredicate,
+                                                    scheduledExecutor
+                                            ),
+                                            retryStrategy.getRetryDelay().toMillis(),
+                                            TimeUnit.MILLISECONDS
+                                    );
+                                    resultFuture.whenComplete((T innerValue, Throwable innerThrowable) -> {
+                                        scheduledFuture.cancel(false);
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+        );
+
+        resultFuture.whenComplete((T ignored, Throwable throwable) -> operationFuture.cancel(false));
     }
 
 }
