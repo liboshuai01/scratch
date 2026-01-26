@@ -348,12 +348,14 @@ public class FutureUtils {
 
         @Override
         int getNumFuturesTotal() {
-            return 0;
+            return this.numTotal;
         }
 
         @Override
         int getNumFuturesCompleted() {
-            return 0;
+            synchronized (lock) {
+                return this.numCompleted;
+            }
         }
     }
 
