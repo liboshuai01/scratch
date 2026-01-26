@@ -2,10 +2,11 @@ package cn.liboshuai.scratch.flink.mini.util.concurrent;
 
 import cn.liboshuai.scratch.flink.mini.util.function.SupplierWithException;
 import com.google.common.base.Preconditions;
-import com.google.common.base.Predicates;
 
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
@@ -289,14 +290,63 @@ public class FutureUtils {
         });
     }
 
-    public static CompletableFuture<?> waitForAll(Collection<CompletableFuture<?>> futures) {
+    public static ConjunctFuture<?> waitForAll(Collection<? extends CompletableFuture<?>> futures) {
         Preconditions.checkNotNull(futures, "futures");
         return new WaitingConjunctFuture(futures);
     }
 
+    public static <T> CompletableFuture<Collection<T>> combineAll(Collection<? extends CompletableFuture<? extends T>> futures) {
+        Preconditions.checkNotNull(futures, "futures");
+        return new ResultConjunctFuture<>(futures);
+    }
+
     public abstract static class ConjunctFuture<T> extends CompletableFuture<T> {
         abstract int getNumFuturesTotal();
+
         abstract int getNumFuturesCompleted();
+    }
+
+    public static class ResultConjunctFuture<T> extends ConjunctFuture<Collection<T>> {
+
+        private final int numTotal;
+        private final AtomicInteger numCompleted = new AtomicInteger(0);
+        private final T[] results;
+
+        private void handleCompletedFuture(int index, T value, Throwable throwable) {
+            if (throwable != null) {
+                completedExceptionally(throwable);
+            } else {
+                results[index] = value;
+                if (numTotal == numCompleted.incrementAndGet()) {
+                    complete(Arrays.asList(results));
+                }
+            }
+        }
+
+        @SuppressWarnings("unchecked")
+        public ResultConjunctFuture(Collection<? extends CompletableFuture<? extends T>> futures) {
+            this.numTotal = futures.size();
+            this.results = (T[]) new Object[numTotal];
+            if (futures.isEmpty()) {
+                complete(Collections.emptyList());
+            } else {
+                int counter = 0;
+                for (CompletableFuture<? extends T> future : futures) {
+                    final int index = counter++;
+                    future.whenComplete((T value, Throwable throwable) -> this.handleCompletedFuture(index, value, throwable));
+                }
+            }
+        }
+
+        @Override
+        int getNumFuturesTotal() {
+            return 0;
+        }
+
+        @Override
+        int getNumFuturesCompleted() {
+            return 0;
+        }
     }
 
     public static class WaitingConjunctFuture extends ConjunctFuture<Void> {
