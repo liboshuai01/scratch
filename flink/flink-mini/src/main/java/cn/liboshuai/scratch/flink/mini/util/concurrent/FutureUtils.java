@@ -2,6 +2,7 @@ package cn.liboshuai.scratch.flink.mini.util.concurrent;
 
 import cn.liboshuai.scratch.flink.mini.util.function.SupplierWithException;
 
+import java.time.Duration;
 import java.util.concurrent.*;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -216,6 +217,72 @@ public class FutureUtils {
         );
 
         resultFuture.whenComplete((T ignored, Throwable throwable) -> operationFuture.cancel(false));
+    }
+
+    public static <T> CompletableFuture<T> retrySuccessfulWithDelay(
+            Supplier<CompletableFuture<T>> operation,
+            Duration retryDelay,
+            Deadline deadline,
+            Predicate<T> acceptancePredicate,
+            ScheduledExecutor scheduledExecutor
+    ) {
+        final CompletableFuture<T> resultFuture = new CompletableFuture<>();
+        retrySuccessfulOperationWithDelay(resultFuture, operation, retryDelay, deadline, acceptancePredicate, scheduledExecutor);
+        return resultFuture;
+    }
+
+    public static <T> void retrySuccessfulOperationWithDelay(
+            CompletableFuture<T> resultFuture,
+            Supplier<CompletableFuture<T>> operation,
+            Duration retryDelay,
+            Deadline deadline,
+            Predicate<T> acceptancePredicate,
+            ScheduledExecutor scheduledExecutor
+    ) {
+        if (resultFuture.isDone()) {
+            return;
+        }
+        CompletableFuture<T> operationFuture = operation.get();
+        operationFuture.whenComplete((T value, Throwable throwable) -> {
+            if (throwable != null) {
+                if (throwable instanceof CancellationException) {
+                    resultFuture.completeExceptionally(
+                            new RetryException("Operation future was cancelled.", throwable));
+                } else {
+                    resultFuture.completeExceptionally(throwable);
+                }
+            } else {
+                if (acceptancePredicate.test(value)) {
+                    resultFuture.complete(value);
+                } else {
+                    if (!deadline.hasTimeLeft()) {
+                        resultFuture.completeExceptionally(
+                                new RetryException(
+                                        "Could not satisfy the predicate within the allowed time."));
+                    } else {
+                        ScheduledFuture<?> scheduledFuture = scheduledExecutor.schedule(
+                                () -> retrySuccessfulOperationWithDelay(
+                                        resultFuture,
+                                        operation,
+                                        retryDelay,
+                                        deadline,
+                                        acceptancePredicate,
+                                        scheduledExecutor
+                                ),
+                                retryDelay.toMillis(),
+                                TimeUnit.MILLISECONDS
+                        );
+                        resultFuture.whenComplete((T innerValue, Throwable innerThrowable) -> {
+                            scheduledFuture.cancel(false);
+                        });
+                    }
+                }
+            }
+        });
+
+        resultFuture.whenComplete((T ignored, Throwable throwable) -> {
+            operationFuture.cancel(false);
+        });
     }
 
 }
