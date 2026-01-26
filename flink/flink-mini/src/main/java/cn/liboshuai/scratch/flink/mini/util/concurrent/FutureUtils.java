@@ -9,8 +9,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Predicate;
-import java.util.function.Supplier;
+import java.util.function.*;
 
 /**
  * 仿写Flink中的FutureUtils类，依次来提高自己Java异步编程和函数式编程的能力
@@ -437,6 +436,56 @@ public class FutureUtils {
         int getNumFuturesCompleted() {
             return this.numCompleted.get();
         }
+    }
+
+    public static <IN, OUT> CompletableFuture<OUT> thenApplyAsyncIfNotDone(
+            CompletableFuture<IN> completableFuture,
+            Executor executor,
+            Function<? super IN, ? extends OUT> applyFun
+    ) {
+        return completableFuture.isDone()
+                ? completableFuture.thenApply(applyFun)
+                : completableFuture.thenApplyAsync(applyFun, executor);
+    }
+
+    public static <IN, OUT> CompletableFuture<OUT> theComposeAsyncIfNotDone(
+            CompletableFuture<IN> completableFuture,
+            Executor executor,
+            Function<? super IN, ? extends CompletionStage<OUT>> applyFun
+    ){
+        return completableFuture.isDone()
+                ? completableFuture.thenCompose(applyFun)
+                : completableFuture.thenComposeAsync(applyFun, executor);
+    }
+
+    public static <IN> CompletableFuture<IN> whenCompleteAsyncIfNotDone(
+            CompletableFuture<IN> completableFuture,
+            Executor executor,
+            BiConsumer<IN, Throwable> biConsumer
+    ) {
+        return completableFuture.isDone()
+                ? completableFuture.whenComplete(biConsumer)
+                : completableFuture.whenCompleteAsync(biConsumer, executor);
+    }
+
+    public static <IN> CompletableFuture<Void> thenAcceptAsyncIfNotDone(
+            CompletableFuture<IN> completableFuture,
+            Executor executor,
+            Consumer<IN> consumer
+    ) {
+        return completableFuture.isDone()
+                ? completableFuture.thenAccept(consumer)
+                : completableFuture.thenAcceptAsync(consumer, executor);
+    }
+
+    public static <IN, OUT> CompletableFuture<OUT> handleAsyncIfNotDone(
+            CompletableFuture<IN> completableFuture,
+            Executor executor,
+            BiFunction<? super IN, Throwable, ? extends OUT> biFunction
+    ) {
+        return completableFuture.isDone()
+                ? completableFuture.handle(biFunction)
+                : completableFuture.handleAsync(biFunction, executor);
     }
 
 }
