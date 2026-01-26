@@ -290,7 +290,7 @@ public class FutureUtils {
         });
     }
 
-    public static ConjunctFuture<?> waitForAll(Collection<? extends CompletableFuture<?>> futures) {
+    public static ConjunctFuture<Void> waitForAll(Collection<? extends CompletableFuture<?>> futures) {
         Preconditions.checkNotNull(futures, "futures");
         return new WaitingConjunctFuture(futures);
     }
@@ -300,10 +300,61 @@ public class FutureUtils {
         return new ResultConjunctFuture<>(futures);
     }
 
+    public static ConjunctFuture<Void> completeAll(Collection<? extends CompletableFuture<?>> futures) {
+        Preconditions.checkNotNull(futures, "futures");
+        return new CompletionConjunctFuture(futures);
+    }
+
     public abstract static class ConjunctFuture<T> extends CompletableFuture<T> {
         abstract int getNumFuturesTotal();
 
         abstract int getNumFuturesCompleted();
+    }
+
+    public static class CompletionConjunctFuture extends ConjunctFuture<Void> {
+
+        private final int numTotal;
+        private int numCompleted;
+        private Throwable globalThrowable;
+        private final Object lock = new Object();
+
+        private void handleCompletedFuture(Object ignored, Throwable throwable) {
+            synchronized (lock) {
+                numCompleted++;
+                if (throwable != null) {
+                    globalThrowable = ExceptionUtils.firstOrSuppressed(throwable, globalThrowable);
+                }
+                if (numTotal == numCompleted) {
+                    if (globalThrowable == null) {
+                        complete(null);
+                    } else {
+                        completedExceptionally(globalThrowable);
+                    }
+                }
+            }
+        }
+
+        public CompletionConjunctFuture(Collection<? extends CompletableFuture<?>> futures) {
+            this.numTotal = futures.size();
+
+            if (futures.isEmpty()) {
+                complete(null);
+            } else {
+                for (CompletableFuture<?> future : futures) {
+                    future.whenComplete(this::handleCompletedFuture);
+                }
+            }
+        }
+
+        @Override
+        int getNumFuturesTotal() {
+            return 0;
+        }
+
+        @Override
+        int getNumFuturesCompleted() {
+            return 0;
+        }
     }
 
     public static class ResultConjunctFuture<T> extends ConjunctFuture<Collection<T>> {
