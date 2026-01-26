@@ -448,7 +448,7 @@ public class FutureUtils {
                 : completableFuture.thenApplyAsync(applyFun, executor);
     }
 
-    public static <IN, OUT> CompletableFuture<OUT> theComposeAsyncIfNotDone(
+    public static <IN, OUT> CompletableFuture<OUT> thenComposeAsyncIfNotDone(
             CompletableFuture<IN> completableFuture,
             Executor executor,
             Function<? super IN, ? extends CompletionStage<OUT>> applyFun
