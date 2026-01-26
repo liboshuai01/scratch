@@ -461,7 +461,7 @@ public class FutureUtils {
     public static <IN> CompletableFuture<IN> whenCompleteAsyncIfNotDone(
             CompletableFuture<IN> completableFuture,
             Executor executor,
-            BiConsumer<IN, Throwable> biConsumer
+            BiConsumer<? super IN, ? super Throwable> biConsumer
     ) {
         return completableFuture.isDone()
                 ? completableFuture.whenComplete(biConsumer)
