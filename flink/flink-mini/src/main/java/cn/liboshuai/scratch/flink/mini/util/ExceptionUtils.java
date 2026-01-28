@@ -7,7 +7,9 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.lang.reflect.Field;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 public final class ExceptionUtils {
 
@@ -114,5 +116,33 @@ public final class ExceptionUtils {
                     "The JDK Throwable contains a private detailMessage member that should be accessible through reflection. This is not the case for the Throwable class provided on the classpath.",
                     e);
         }
+    }
+
+    public static <T extends Throwable> Optional<T> findThrowable(Throwable throwable, Class<T> searchType) {
+        if (throwable == null || searchType == null) {
+            return Optional.empty();
+        }
+        Throwable t = throwable;
+        while (t != null) {
+            if (searchType.isAssignableFrom(t.getClass())) {
+                return Optional.of(searchType.cast(t));
+            }
+            t = t.getCause();
+        }
+        return Optional.empty();
+    }
+
+    public static Optional<Throwable> findThrowable(Throwable throwable, Predicate<Throwable> predicate) {
+        if (throwable == null || predicate == null) {
+            return Optional.empty();
+        }
+        Throwable t = throwable;
+        while (t != null) {
+            if (predicate.test(t)) {
+                return Optional.of(t);
+            }
+            t = t.getCause();
+        }
+        return Optional.empty();
     }
 }
