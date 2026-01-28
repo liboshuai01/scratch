@@ -1,7 +1,9 @@
 package cn.liboshuai.scratch.flink.mini.util;
 
+import javax.annotation.Nullable;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.Locale;
 
 public final class ExceptionUtils {
 
@@ -22,13 +24,35 @@ public final class ExceptionUtils {
         }
     }
 
-    public static boolean isJvmFatalError(Throwable throwable) {
-        return (throwable instanceof InternalError
-                || throwable instanceof UnknownError
-                || throwable instanceof ThreadDeath);
+    public static boolean isJvmFatalError(Throwable t) {
+        return (t instanceof InternalError
+                || t instanceof UnknownError
+                || t instanceof ThreadDeath);
     }
 
-    public static boolean isJvmFatalOrOutOfMemoryError(Throwable throwable) {
-        return isJvmFatalError(throwable) || (throwable instanceof OutOfMemoryError);
+    public static boolean isJvmFatalOrOutOfMemoryError(Throwable t) {
+        return isJvmFatalError(t) || (t instanceof OutOfMemoryError);
+    }
+
+    public static boolean isMetaspaceOutOfMemoryError(@Nullable Throwable t) {
+        return isOutOfMemoryErrorWithMessageContaining(t, "Metaspace");
+    }
+
+    public static boolean isDirectOutOfMemoryError(@Nullable Throwable t) {
+        return isOutOfMemoryErrorWithMessageContaining(t, "Direct buffer memory");
+    }
+
+    public static boolean isHeapSpaceOutOfMemoryError(@Nullable Throwable t) {
+        return isOutOfMemoryErrorWithMessageContaining(t, "Java heap space");
+    }
+
+    private static boolean isOutOfMemoryErrorWithMessageContaining(@Nullable Throwable t, String infix) {
+        return isOutOfMemoryError(t)
+                && t.getMessage() != null
+                && t.getMessage().toLowerCase(Locale.ROOT).contains(infix.toLowerCase(Locale.ROOT));
+    }
+
+    private static boolean isOutOfMemoryError(Throwable t) {
+        return t != null && t.getClass() == OutOfMemoryError.class;
     }
 }
