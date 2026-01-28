@@ -21,4 +21,10 @@ public final class ExceptionUtils {
             return e.getClass().getName() + " (error while printing stack trace)";
         }
     }
+
+    public static boolean isJvmFatalError(Throwable throwable) {
+        return (throwable instanceof InternalError
+                || throwable instanceof UnknownError
+                || throwable instanceof ThreadDeath);
+    }
 }
