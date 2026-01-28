@@ -574,6 +574,14 @@ public class FutureUtils {
 
     public static CompletableFuture<Void> runAfterwardsAsync(
             CompletableFuture<?> future,
+            RunnableWithException runnable
+    ) {
+        return runAfterwardsAsync(future, runnable, ForkJoinPool.commonPool());
+    }
+
+
+    public static CompletableFuture<Void> runAfterwardsAsync(
+            CompletableFuture<?> future,
             RunnableWithException runnable,
             Executor executor
     ) {
