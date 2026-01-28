@@ -1,9 +1,13 @@
 package cn.liboshuai.scratch.flink.mini.util;
 
+import org.checkerframework.checker.nullness.qual.NonNull;
+
 import javax.annotation.Nullable;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.lang.reflect.Field;
 import java.util.Locale;
+import java.util.function.Function;
 
 public final class ExceptionUtils {
 
@@ -54,5 +58,61 @@ public final class ExceptionUtils {
 
     private static boolean isOutOfMemoryError(Throwable t) {
         return t != null && t.getClass() == OutOfMemoryError.class;
+    }
+
+    public static void tryEnrichOutOfMemoryError(
+            @Nullable Throwable root,
+            @Nullable String jvmMetaspaceOomNewErrorMessage,
+            @Nullable String jvmDirectOomNewErrorMessage,
+            @Nullable String jvmHeapSpaceOomNewErrorMessage
+    ) {
+        updateDetailMessage(
+                root,
+                (Throwable t) -> {
+                    if (isMetaspaceOutOfMemoryError(t)) {
+                        return jvmMetaspaceOomNewErrorMessage;
+                    } else if (isDirectOutOfMemoryError(t)) {
+                        return jvmDirectOomNewErrorMessage;
+                    } else if (isHeapSpaceOutOfMemoryError(t)) {
+                        return jvmHeapSpaceOomNewErrorMessage;
+                    }
+                    return null;
+                }
+        );
+    }
+
+    private static void updateDetailMessage(
+            @Nullable Throwable root, @Nullable Function<Throwable, String> throwableToMessage
+    ) {
+        if (root == null || throwableToMessage == null) {
+            return;
+        }
+        Throwable it = root;
+        while (it != null) {
+            String newErrorMessage = throwableToMessage.apply(root);
+            if (newErrorMessage != null) {
+                updateDetailMessageOfThrowable(root, newErrorMessage);
+            }
+            it = root.getCause();
+        }
+    }
+
+    private static void updateDetailMessageOfThrowable(@NonNull Throwable root, String newErrorMessage) {
+        Field field;
+        try {
+            field = Throwable.class.getDeclaredField("detailMessage");
+        } catch (NoSuchFieldException e) {
+            throw new IllegalStateException(
+                    "The JDK Throwable contains a detailMessage member. The Throwable class provided on the classpath does not which is why this exception appears.",
+                    e);
+        }
+        field.setAccessible(true);
+        try {
+            field.set(root, newErrorMessage);
+        } catch (IllegalAccessException e) {
+            throw new IllegalStateException(
+                    "The JDK Throwable contains a private detailMessage member that should be accessible through reflection. This is not the case for the Throwable class provided on the classpath.",
+                    e);
+        }
     }
 }
