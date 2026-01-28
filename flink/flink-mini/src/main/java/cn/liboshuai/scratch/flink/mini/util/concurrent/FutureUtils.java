@@ -623,4 +623,40 @@ public class FutureUtils {
         return resultFuture;
     }
 
+    public static boolean isCompletedNormally(CompletableFuture<?> future) {
+        return future.isDone() && !future.isCompletedExceptionally();
+    }
+
+    public static <T> T getWithoutException(CompletableFuture<T> future) {
+        if (isCompletedNormally(future)) {
+            try {
+                return future.get();
+            } catch (InterruptedException | ExecutionException ignored) {
+
+            }
+        }
+        return null;
+    }
+
+    public static <T> T getOrDefault(CompletableFuture<T> future, T defaultValue) {
+        T value = getWithoutException(future);
+        return value == null ? defaultValue : value;
+    }
+
+    public static <T> T checkStateAndGet(CompletableFuture<T> future) {
+        checkCompletedNormally(future);
+        return getWithoutException(future);
+    }
+
+    public static void checkCompletedNormally(CompletableFuture<?> future) {
+        Preconditions.checkState(future.isDone());
+        if (future.isCompletedExceptionally()) {
+            try {
+                future.get();
+            } catch (InterruptedException | ExecutionException e) {
+                throw new IllegalStateException(e);
+            }
+        }
+    }
+
 }
