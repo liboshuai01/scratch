@@ -2,7 +2,9 @@ package cn.liboshuai.scratch.flink.mini.util.concurrent;
 
 import cn.liboshuai.scratch.flink.mini.util.function.SupplierWithException;
 import com.google.common.base.Preconditions;
+import org.checkerframework.checker.nullness.qual.NonNull;
 
+import javax.annotation.Nullable;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collection;
@@ -486,6 +488,76 @@ public class FutureUtils {
         return completableFuture.isDone()
                 ? completableFuture.handle(biFunction)
                 : completableFuture.handleAsync(biFunction, executor);
+    }
+
+    private static class Timeout implements Runnable {
+
+        private final CompletableFuture<?> future;
+        private final String timeoutMsg;
+
+        private Timeout(CompletableFuture<?> future, String timeoutMsg) {
+            this.future = future;
+            this.timeoutMsg = timeoutMsg;
+        }
+
+        @Override
+        public void run() {
+            future.completeExceptionally(new TimeoutException(timeoutMsg));
+        }
+    }
+
+    private enum Delayer {
+        ;
+        private static final ScheduledExecutorService DELAYER =
+                new ScheduledThreadPoolExecutor(1, new ExecutorThreadFactory("FlinkCompletableFutureDelayScheduler"));
+
+        public static ScheduledFuture<?> delay(Runnable command, long delay, TimeUnit timeUnit) {
+            return DELAYER.schedule(command, delay, timeUnit);
+        }
+    }
+
+    /**
+     * 与Flink中的代码进行对比时，请忽略这个 ExecutorThreadFactory 的建构区别
+     */
+    private static class ExecutorThreadFactory implements ThreadFactory {
+
+        private final String prefix;
+        private final AtomicInteger counter = new AtomicInteger(0);
+
+        private ExecutorThreadFactory(String prefix) {
+            this.prefix = prefix;
+        }
+
+        @Override
+        public Thread newThread(@NonNull Runnable r) {
+            Thread thread = new Thread(r, prefix + counter.getAndIncrement());
+            thread.setDaemon(true);
+            thread.setPriority(Thread.NORM_PRIORITY);
+            return thread;
+        }
+    }
+
+    public static <T> CompletableFuture<T> orTimeout(
+            CompletableFuture<T> completableFuture,
+            long timeout,
+            TimeUnit timeUnit,
+            Executor timeoutFailExecutor,
+            @Nullable String timeoutMsg
+    ) {
+        if (completableFuture.isDone()) {
+            return completableFuture;
+        }
+        ScheduledFuture<?> timeoutFuture = Delayer.delay(
+                () -> timeoutFailExecutor.execute(new Timeout(completableFuture, timeoutMsg)),
+                timeout,
+                timeUnit
+        );
+        completableFuture.whenComplete((T ignored, Throwable throwable) -> {
+            if (!timeoutFuture.isDone()) {
+                timeoutFuture.cancel(false);
+            }
+        });
+        return completableFuture;
     }
 
 }
