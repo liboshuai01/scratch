@@ -1,5 +1,6 @@
 package cn.liboshuai.scratch.flink.mini.util.concurrent;
 
+import cn.liboshuai.scratch.flink.mini.util.function.RunnableWithException;
 import cn.liboshuai.scratch.flink.mini.util.function.SupplierWithException;
 import com.google.common.base.Preconditions;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -562,6 +563,34 @@ public class FutureUtils {
 
     public static <T> void completeDelayed(CompletableFuture<T> future, T success, Duration delay) {
         Delayer.delay(() -> future.complete(success), delay.toMillis(), TimeUnit.MILLISECONDS);
+    }
+
+    public static CompletableFuture<Void> runAfterwards(
+            CompletableFuture<?> future,
+            RunnableWithException runnable
+    ) {
+        return runAfterwardsAsync(future, runnable, Executors.directExecutor());
+    }
+
+    public static CompletableFuture<Void> runAfterwardsAsync(
+            CompletableFuture<?> future,
+            RunnableWithException runnable,
+            Executor executor
+    ) {
+        final CompletableFuture<Void> resultFuture = new CompletableFuture<>();
+        future.whenCompleteAsync((Object ignored, Throwable throwable) -> {
+            try {
+                runnable.run();
+            } catch (Throwable e) {
+                throwable = ExceptionUtils.firstOrSuppressed(e, throwable);
+            }
+            if (throwable != null) {
+                resultFuture.completeExceptionally(throwable);
+            } else {
+                resultFuture.complete(null);
+            }
+        }, executor);
+        return resultFuture;
     }
 
 }
