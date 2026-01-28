@@ -560,4 +560,8 @@ public class FutureUtils {
         return completableFuture;
     }
 
+    public static <T> void completeDelayed(CompletableFuture<T> future, T success, Duration delay) {
+        Delayer.delay(() -> future.complete(success), delay.toMillis(), TimeUnit.MILLISECONDS);
+    }
+
 }
