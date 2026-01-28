@@ -159,4 +159,25 @@ public final class ExceptionUtils {
         }
         return Optional.empty();
     }
+
+    public static <T extends Throwable> void assertThrowable(Throwable throwable, Class<T> searchType) throws T {
+        if (!findThrowable(throwable, searchType).isPresent()) {
+            throw (T) throwable;
+        }
+    }
+
+    public static <T extends Throwable> void assertThrowable(T throwable, Predicate<Throwable> predicate) throws T {
+        if (!findThrowable(throwable, predicate).isPresent()) {
+            throw (T) throwable;
+        }
+    }
+
+    public static <T extends Throwable> void assertThrowableWithMessage(
+            Throwable throwable, String searchMessage) throws T {
+        if (!findThrowableWithMessage(throwable, searchMessage).isPresent()) {
+            throw (T) throwable;
+        }
+    }
+
+
 }
