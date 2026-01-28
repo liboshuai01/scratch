@@ -601,4 +601,26 @@ public class FutureUtils {
         return resultFuture;
     }
 
+    public static CompletableFuture<Void> composeAfterwards(
+            CompletableFuture<?> future,
+            Supplier<CompletableFuture<?>> composedAction
+    ) {
+        final CompletableFuture<Void> resultFuture = new CompletableFuture<>();
+        future.whenComplete((Object outerIgnored, Throwable outerThrowable) -> {
+            CompletableFuture<?> composedActionFuture = composedAction.get();
+            composedActionFuture.whenComplete((Object innerIgnored, Throwable innerThrowable) -> {
+                if (innerThrowable != null) {
+                     resultFuture.completeExceptionally(
+                             ExceptionUtils.firstOrSuppressed(innerThrowable, outerThrowable)
+                     );
+                } else if (outerThrowable != null) {
+                    resultFuture.completeExceptionally(outerThrowable);
+                } else {
+                    resultFuture.complete(null);
+                }
+            });
+        });
+        return resultFuture;
+    }
+
 }
