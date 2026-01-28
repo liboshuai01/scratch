@@ -27,4 +27,8 @@ public final class ExceptionUtils {
                 || throwable instanceof UnknownError
                 || throwable instanceof ThreadDeath);
     }
+
+    public static boolean isJvmFatalOrOutOfMemoryError(Throwable throwable) {
+        return isJvmFatalError(throwable) || (throwable instanceof OutOfMemoryError);
+    }
 }
