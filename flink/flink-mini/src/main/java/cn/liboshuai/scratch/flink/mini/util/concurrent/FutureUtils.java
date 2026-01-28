@@ -627,6 +627,7 @@ public class FutureUtils {
         return future.isDone() && !future.isCompletedExceptionally();
     }
 
+    @Nullable
     public static <T> T getWithoutException(CompletableFuture<T> future) {
         if (isCompletedNormally(future)) {
             try {
