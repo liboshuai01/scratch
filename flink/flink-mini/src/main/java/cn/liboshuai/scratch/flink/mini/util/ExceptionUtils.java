@@ -182,11 +182,10 @@ public final class ExceptionUtils {
     }
 
     public static Throwable stripException(Throwable throwable, Class<? extends Throwable> searchType) {
-        Throwable result = throwable;
-        if (searchType.isAssignableFrom(throwable.getClass()) && throwable.getCause() != null) {
-            result = throwable.getCause();
+        while (searchType.isAssignableFrom(throwable.getClass()) && throwable.getCause() != null) {
+            throwable = throwable.getCause();
         }
-        return result;
+        return throwable;
     }
 
     public static Throwable stripExecutionException(Throwable throwable) {
@@ -196,7 +195,5 @@ public final class ExceptionUtils {
     public static Throwable stripCompletionException(Throwable throwable) {
         return stripException(throwable, CompletionException.class);
     }
-
-
 
 }
