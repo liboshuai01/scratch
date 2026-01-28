@@ -8,6 +8,8 @@ import java.io.StringWriter;
 import java.lang.reflect.Field;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -178,6 +180,23 @@ public final class ExceptionUtils {
             throw (T) throwable;
         }
     }
+
+    public static Throwable stripException(Throwable throwable, Class<? extends Throwable> searchType) {
+        Throwable result = throwable;
+        if (searchType.isAssignableFrom(throwable.getClass()) && throwable.getCause() != null) {
+            result = throwable.getCause();
+        }
+        return result;
+    }
+
+    public static Throwable stripExecutionException(Throwable throwable) {
+        return stripException(throwable, ExecutionException.class);
+    }
+
+    public static Throwable stripCompletionException(Throwable throwable) {
+        return stripException(throwable, CompletionException.class);
+    }
+
 
 
 }
