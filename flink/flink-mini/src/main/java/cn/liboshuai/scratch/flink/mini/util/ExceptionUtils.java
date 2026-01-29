@@ -265,7 +265,7 @@ public final class ExceptionUtils {
         }
     }
 
-    public static void rethrowIfFatalErrorOrOom(Throwable t) {
+    public static void rethrowIfFatalErrorOrOOM(Throwable t) {
         if (isJvmFatalOrOutOfMemoryError(t)) {
             throw (Error) t;
         }
