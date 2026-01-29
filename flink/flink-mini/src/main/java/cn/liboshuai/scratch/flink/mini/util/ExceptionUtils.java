@@ -3,6 +3,7 @@ package cn.liboshuai.scratch.flink.mini.util;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import javax.annotation.Nullable;
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.lang.reflect.Field;
@@ -233,6 +234,28 @@ public final class ExceptionUtils {
             throw (Exception) t;
         } else {
             throw new Exception(parentMessage, t);
+        }
+    }
+
+    public static void tryRethrowIoException(Throwable t) throws IOException {
+        if (t instanceof Error) {
+            throw (Error) t;
+        } else if (t instanceof RuntimeException) {
+            throw (RuntimeException) t;
+        } else if (t instanceof IOException){
+            throw (IOException) t;
+        }
+    }
+
+    public static void rethrowIoException(Throwable t) throws IOException {
+        if (t instanceof Error) {
+            throw (Error) t;
+        } else if (t instanceof RuntimeException) {
+            throw (RuntimeException) t;
+        } else if (t instanceof IOException) {
+            throw (IOException) t;
+        } else {
+            throw new IOException(t.getMessage(), t);
         }
     }
 
