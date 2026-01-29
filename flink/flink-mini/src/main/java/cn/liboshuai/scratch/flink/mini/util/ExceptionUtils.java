@@ -196,4 +196,24 @@ public final class ExceptionUtils {
         return stripException(throwable, CompletionException.class);
     }
 
+    public static void rethrow(Throwable t) {
+        if (t instanceof Error) {
+            throw (Error) t;
+        } else if (t instanceof RuntimeException) {
+            throw (RuntimeException) t;
+        } else {
+            throw new RuntimeException(t);
+        }
+    }
+
+    public static void rethrow(Throwable t, String parentMessage) {
+        if (t instanceof Error) {
+            throw (Error) t;
+        } else if (t instanceof RuntimeException) {
+            throw (RuntimeException) t;
+        } else {
+            throw new RuntimeException(parentMessage, t);
+        }
+    }
+
 }
