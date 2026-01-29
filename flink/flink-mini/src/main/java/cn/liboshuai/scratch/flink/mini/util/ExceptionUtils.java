@@ -1,6 +1,9 @@
 package cn.liboshuai.scratch.flink.mini.util;
 
+import cn.liboshuai.scratch.flink.mini.util.function.RunnableWithException;
+import com.google.common.base.Preconditions;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.slf4j.Logger;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
@@ -268,6 +271,44 @@ public final class ExceptionUtils {
     public static void rethrowIfFatalErrorOrOOM(Throwable t) {
         if (isJvmFatalOrOutOfMemoryError(t)) {
             throw (Error) t;
+        }
+    }
+
+    public static <T extends Throwable> T firstOrSuppressed(T newThrowable, @Nullable T previous) {
+        Preconditions.checkNotNull(newThrowable);
+        if (previous == null || previous == newThrowable) {
+            return newThrowable;
+        } else {
+            previous.addSuppressed(newThrowable);
+            return previous;
+        }
+    }
+
+    public static void checkInterrupted(Throwable e) {
+        if (e instanceof InterruptedException) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    public static void suppressExceptions(RunnableWithException action) {
+        try {
+            action.run();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (Throwable e) {
+            if (isJvmFatalError(e)) {
+                rethrow(e);
+            }
+        }
+    }
+
+    public static Throwable returnExceptionIfUnexpected(Throwable e) {
+        return e instanceof FlinkExpectedException ? null : e;
+    }
+
+    public static void logExceptionIfExpected(Throwable e, Logger log) {
+        if (e instanceof FlinkExpectedException) {
+            log.debug("Expected exception.", e);
         }
     }
 
