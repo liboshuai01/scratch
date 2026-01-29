@@ -237,7 +237,7 @@ public final class ExceptionUtils {
         }
     }
 
-    public static void tryRethrowIoException(Throwable t) throws IOException {
+    public static void tryRethrowIOException(Throwable t) throws IOException {
         if (t instanceof Error) {
             throw (Error) t;
         } else if (t instanceof RuntimeException) {
@@ -247,7 +247,7 @@ public final class ExceptionUtils {
         }
     }
 
-    public static void rethrowIoException(Throwable t) throws IOException {
+    public static void rethrowIOException(Throwable t) throws IOException {
         if (t instanceof Error) {
             throw (Error) t;
         } else if (t instanceof RuntimeException) {
