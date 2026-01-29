@@ -222,7 +222,7 @@ public final class ExceptionUtils {
         } else if (t instanceof Exception) {
             throw (Exception) t;
         } else {
-            throw new Exception(t);
+            throw new Exception(t.getMessage(), t);
         }
     }
 
