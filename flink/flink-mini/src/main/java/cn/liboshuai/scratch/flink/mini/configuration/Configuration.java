@@ -1,10 +1,17 @@
 package cn.liboshuai.scratch.flink.mini.configuration;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
-public class Configuration extends ExecutionConfig.GlobalJobParameters implements IOReadableWritable{
+public class Configuration extends ExecutionConfig.GlobalJobParameters
+        implements IOReadableWritable,
+        Serializable,
+        Cloneable,
+        ReadableConfig,
+        WritableConfig {
     private static final long serialVersionUID = -5945849636478209751L;
 
     private static final byte TYPE_STRING = 0;
@@ -110,5 +117,35 @@ public class Configuration extends ExecutionConfig.GlobalJobParameters implement
                 this.confData.put(key, val);
             }
         }
+    }
+
+    @Override
+    public Configuration clone() {
+        Configuration configuration = new Configuration();
+        configuration.addAll(this);
+        return configuration;
+    }
+
+    public void addAll(Configuration other) {
+        synchronized (this.confData) {
+            synchronized (other.confData) {
+                confData.putAll(other.confData);
+            }
+        }
+    }
+
+    @Override
+    public <T> T get(ConfigOption<T> option) {
+        return null;
+    }
+
+    @Override
+    public <T> Optional<T> getOptional(ConfigOption<T> option) {
+        return Optional.empty();
+    }
+
+    @Override
+    public <T> WritableConfig set(ConfigOption<T> option, T value) {
+        return null;
     }
 }
