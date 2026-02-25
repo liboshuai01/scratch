@@ -26,6 +26,6 @@ public class NettyConnectManager {
 
     public void shutdown() {
         client.shutdown();
-        server.shutdown();;
+        server.shutdown();
     }
 }

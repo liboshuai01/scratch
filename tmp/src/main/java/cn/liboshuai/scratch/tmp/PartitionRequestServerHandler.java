@@ -5,7 +5,6 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import lombok.extern.slf4j.Slf4j;
 
-
 /**
  * 位于服务端的处理器：负责接收下游的 PartitionRequest，并开始推送数据。
  */
@@ -16,7 +15,7 @@ public class PartitionRequestServerHandler extends SimpleChannelInboundHandler<N
     protected void channelRead0(ChannelHandlerContext ctx, NettyMessage msg) throws Exception {
         if (msg instanceof NettyMessage.PartitionRequest) {
             NettyMessage.PartitionRequest request = (NettyMessage.PartitionRequest) msg;
-            log.info("服务端收到数据拉取请求：Partition={}, Receiver={}", request.partitionID, request.receiverId);
+            log.info("服务端收到数据拉取请求：Partition={}, Receiver={}", request.partitionId, request.receiverId);
 
             // 在真正的 Flink 中，这里会创建 ViewReader，挂载到 Queue 中。
             // 为了简易演示，我们立即模拟源源不断地回复 3 条数据
@@ -24,15 +23,18 @@ public class PartitionRequestServerHandler extends SimpleChannelInboundHandler<N
                 String payload = "Hello Flink Data Stream [" + i + "]";
                 ByteBuf data = ctx.alloc().buffer();
                 data.writeBytes(payload.getBytes());
+
                 NettyMessage.BufferResponse response = new NettyMessage.BufferResponse(
                         request.receiverId,
                         i,
                         data
                 );
+
                 // 写回并刷新
                 ctx.writeAndFlush(response);
             }
         }
+
     }
 
     @Override

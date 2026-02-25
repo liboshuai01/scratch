@@ -6,11 +6,12 @@ import io.netty.channel.SimpleChannelInboundHandler;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * 位于客户端的处理器：接收到来自服务端的真实数据缓冲 BufferResponse。
- * （在 Flink 源码中对应 CreditBasedPartitionRequestClientHandler)
+ * 位于客户端的处理器：接收来自服务端的真实数据缓冲 BufferResponse。
+ * （在 Flink 源码中对应 CreditBasedPartitionRequestClientHandler）
  */
 @Slf4j
-public class PartitionRequestClientHandler  extends SimpleChannelInboundHandler<NettyMessage> {
+public class PartitionRequestClientHandler extends SimpleChannelInboundHandler<NettyMessage> {
+
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, NettyMessage msg) throws Exception {
         if (msg instanceof NettyMessage.BufferResponse) {
@@ -22,10 +23,9 @@ public class PartitionRequestClientHandler  extends SimpleChannelInboundHandler<
                 byte[] bytes = new byte[buffer.readableBytes()];
                 buffer.readBytes(bytes);
                 String dataStr = new String(bytes);
-
                 log.info("客户端收到缓冲数据：SeqNum={}, ReceiverId={}, 数据内容=[{}]", response.sequenceNumber, response.receiverId, dataStr);
             } finally {
-                // 数据消费完毕，记得释放 Netty  Buffer 以防内存泄漏
+                // 数据消费完毕，记得释放 Netty Buffer 以防内存泄漏
                 buffer.release();
             }
         }

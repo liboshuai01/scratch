@@ -11,7 +11,6 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class NettyServer {
-
     private final NettyConfig config;
     private final NettyProtocol protocol;
 

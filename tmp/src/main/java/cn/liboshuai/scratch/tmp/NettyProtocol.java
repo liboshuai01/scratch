@@ -8,15 +8,15 @@ import io.netty.channel.ChannelHandler;
 public class NettyProtocol {
 
     public ChannelHandler[] getServerChannelHandlers() {
-        return new ChannelHandler[] {
-          new NettyMessage.NettyMessageEncoder(),
-          new NettyMessage.NettyMessageDecoder(),
-          new PartitionRequestServerHandler()
+        return new ChannelHandler[]{
+                new NettyMessage.NettyMessageEncoder(),
+                new NettyMessage.NettyMessageDecoder(),
+                new PartitionRequestServerHandler()
         };
     }
 
-    public ChannelHandler[] getClientChannelHandlers() {
-        return new ChannelHandler[] {
+    public ChannelHandler[] getClientChannelHandler() {
+        return new ChannelHandler[]{
                 new NettyMessage.NettyMessageEncoder(),
                 new NettyMessage.NettyMessageDecoder(),
                 new PartitionRequestClientHandler()

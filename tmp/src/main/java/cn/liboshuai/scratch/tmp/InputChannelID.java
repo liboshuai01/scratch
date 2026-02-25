@@ -32,7 +32,7 @@ public class InputChannelID {
         return new InputChannelID(new UUID(mostSigBits, leastSigBits));
     }
 
-    public static int getByteBufLength() {
+    public static int getByteLength() {
         return 16; // 两个 long 占用 16 字节
     }
 
