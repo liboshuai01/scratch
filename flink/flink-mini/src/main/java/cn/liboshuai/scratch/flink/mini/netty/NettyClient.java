@@ -1,52 +1,57 @@
 package cn.liboshuai.scratch.flink.mini.netty;
 
 import io.netty.bootstrap.Bootstrap;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
-import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-@Slf4j
 public class NettyClient {
-    private final String host;
-    private final int port;
-    private final NettyProtocol protocol;
-    private EventLoopGroup group;
+    private static final Logger LOG = LoggerFactory.getLogger(NettyClient.class);
 
-    public NettyClient(String host, int port, NettyProtocol protocol) {
-        this.host = host;
-        this.port = port;
+    private final NettyConfig config;
+    private final NettyProtocol protocol;
+
+    private Bootstrap bootstrap;
+    private NioEventLoopGroup clientGroup;
+
+    public NettyClient(NettyConfig config, NettyProtocol protocol) {
+        this.config = config;
         this.protocol = protocol;
     }
 
     public void start() {
-        group = new NioEventLoopGroup();
-        try {
-            Bootstrap b = new Bootstrap();
-            b.group(group)
-                    .channel(NioSocketChannel.class)
-                    .option(ChannelOption.TCP_NODELAY, true)
-                    .handler(new ChannelInitializer<SocketChannel>() {
-                        @Override
-                        protected void initChannel(SocketChannel ch) {
-                            ch.pipeline().addLast(protocol.getClientChannelHandlers());
-                        }
-                    });
+        clientGroup = new NioEventLoopGroup(config.getClientNumThreads());
 
-            ChannelFuture f = b.connect(host, port).sync();
-            log.info("=== MiniFlink Netty Client 已连接到 {}:{} ===", host, port);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+        bootstrap = new Bootstrap()
+                .group(clientGroup)
+                .channel(NioSocketChannel.class)
+                .option(ChannelOption.TCP_NODELAY, true)
+                .option(ChannelOption.SO_KEEPALIVE, true)
+                .handler(new ChannelInitializer<SocketChannel>() {
+                    @Override
+                    protected void initChannel(SocketChannel ch) {
+                        ch.pipeline().addLast(protocol.getClientChannelHandlers());
+                    }
+                });
+
+        LOG.info("Netty 客户端已就绪。");
+    }
+
+    public Channel connect() throws InterruptedException {
+        ChannelFuture future = bootstrap.connect(config.getServerAddress(), config.getServerPort()).sync();
+        return future.channel();
     }
 
     public void shutdown() {
-        if (group != null) {
-            group.shutdownGracefully();
+        if (clientGroup != null) {
+            clientGroup.shutdownGracefully();
         }
+        LOG.info("Netty 客户端已关闭。");
     }
 }

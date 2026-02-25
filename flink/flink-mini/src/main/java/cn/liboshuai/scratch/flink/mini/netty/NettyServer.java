@@ -1,51 +1,59 @@
 package cn.liboshuai.scratch.flink.mini.netty;
 
 import io.netty.bootstrap.ServerBootstrap;
+import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
-import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-@Slf4j
 public class NettyServer {
-    private final int port;
-    private final NettyProtocol protocol;
-    private EventLoopGroup bossGroup;
-    private EventLoopGroup workerGroup;
+    private static final Logger LOG = LoggerFactory.getLogger(NettyServer.class);
 
-    public NettyServer(int port, NettyProtocol protocol) {
-        this.port = port;
+    private final NettyConfig config;
+    private final NettyProtocol protocol;
+
+    private ServerBootstrap bootstrap;
+    private ChannelFuture bindFuture;
+    private NioEventLoopGroup bossGroup;
+    private NioEventLoopGroup workerGroup;
+
+    public NettyServer(NettyConfig config, NettyProtocol protocol) {
+        this.config = config;
         this.protocol = protocol;
     }
 
-    public void start() {
+    public void start() throws InterruptedException {
         bossGroup = new NioEventLoopGroup(1);
-        workerGroup = new NioEventLoopGroup();
-        try {
-            ServerBootstrap b = new ServerBootstrap();
-            b.group(bossGroup, workerGroup)
-                    .channel(NioServerSocketChannel.class)
-                    .childHandler(new ChannelInitializer<SocketChannel>() {
-                        @Override
-                        protected void initChannel(SocketChannel ch) {
-                            ch.pipeline().addLast(protocol.getServerChannelHandlers());
-                        }
-                    })
-                    .option(ChannelOption.SO_BACKLOG, 128)
-                    .childOption(ChannelOption.SO_KEEPALIVE, true);
+        workerGroup = new NioEventLoopGroup(config.getServerNumThreads());
 
-            b.bind(port).sync();
-            log.info("=== MiniFlink Netty Server 启动在端口 {} ===", port);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+        bootstrap = new ServerBootstrap()
+                .group(bossGroup, workerGroup)
+                .channel(NioServerSocketChannel.class)
+                .childOption(ChannelOption.TCP_NODELAY, true)
+                .childOption(ChannelOption.SO_KEEPALIVE, true)
+                .childHandler(new ChannelInitializer<SocketChannel>() {
+                    @Override
+                    protected void initChannel(SocketChannel ch) {
+                        ch.pipeline().addLast(protocol.getServerChannelHandlers());
+                    }
+                });
+
+        bindFuture = bootstrap.bind(config.getServerAddress(), config.getServerPort()).sync();
+        LOG.info("Netty 服务端已启动，监听地址 {}:{}", config.getServerAddress(), config.getServerPort());
     }
 
     public void shutdown() {
-        if (bossGroup != null) bossGroup.shutdownGracefully();
-        if (workerGroup != null) workerGroup.shutdownGracefully();
+        if (bindFuture != null) {
+            bindFuture.channel().close().syncUninterruptibly();
+        }
+        if (bossGroup != null) {
+            bossGroup.shutdownGracefully();
+            workerGroup.shutdownGracefully();
+        }
+        LOG.info("Netty 服务端已关闭。");
     }
 }

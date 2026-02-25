@@ -1,81 +1,46 @@
 package cn.liboshuai.scratch.flink.mini.netty;
 
+import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
-import lombok.extern.slf4j.Slf4j;
-
-import java.util.Random;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * 对应 Flink 的 org.apache.flink.runtime.io.network.netty.PartitionRequestServerHandler
- * * 职责：
- * 1. 处理 PartitionRequest。
- * 2. 处理 AddCredit。
- * 3. 持有 OutboundQueue (这里简化为直接启动线程生成数据) 来发送 BufferResponse。
+ * 位于服务端的处理器：负责接收下游的 PartitionRequest，并开始推送数据。
  */
-@Slf4j
 public class PartitionRequestServerHandler extends SimpleChannelInboundHandler<NettyMessage> {
 
-    // 模拟 Flink 的 Reader 上下文
-    private volatile boolean isStreaming = false;
-    private final AtomicInteger availableCredit = new AtomicInteger(0);
+    private static final Logger LOG = LoggerFactory.getLogger(PartitionRequestServerHandler.class);
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, NettyMessage msg) throws Exception {
         if (msg instanceof NettyMessage.PartitionRequest) {
-            NettyMessage.PartitionRequest req = (NettyMessage.PartitionRequest) msg;
-            log.info("[Server] 收到分区请求 Partition={}, InitialCredit={}", req.partitionId, req.credit);
+            NettyMessage.PartitionRequest request = (NettyMessage.PartitionRequest) msg;
+            LOG.info("服务端收到数据拉取请求: Partition={}, Receiver={}", request.partitionId, request.receiverId);
 
-            availableCredit.set(req.credit);
+            // 在真正的 Flink 中，这里会创建 ViewReader，挂载到 Queue 中。
+            // 为了简易演示，我们立即模拟源源不断地回复 3 条数据
+            for (int i = 0; i < 3; i++) {
+                String payload = "Hello Flink Data Stream [" + i + "]";
+                ByteBuf data = ctx.alloc().buffer();
+                data.writeBytes(payload.getBytes());
 
-            if (!isStreaming) {
-                isStreaming = true;
-                startDataGenerator(ctx);
+                NettyMessage.BufferResponse response = new NettyMessage.BufferResponse(
+                        request.receiverId,
+                        i,
+                        data
+                );
+
+                // 写回并刷新
+                ctx.writeAndFlush(response);
             }
-
-        } else if (msg instanceof NettyMessage.AddCredit) {
-            int delta = ((NettyMessage.AddCredit) msg).credit;
-            int newCredit = availableCredit.addAndGet(delta);
-            // log.debug("[Server] 收到 Credit 补充: +{}, 当前: {}", delta, newCredit);
         }
     }
 
-    /**
-     * 模拟 Flink 的 SubpartitionView 读取逻辑。
-     * 在真实 Flink 中，这里是注册一个 Listener，当 Buffer 产生时触发发送。
-     * 这里我们用线程模拟"生产-发送"循环，并加入了简单的 Credit 流控检查。
-     */
-    private void startDataGenerator(ChannelHandlerContext ctx) {
-        new Thread(() -> {
-            Random random = new Random();
-            int seq = 0;
-            try {
-                while (ctx.channel().isActive()) {
-                    // 简单的流控：如果没有 Credit，就等待
-                    if (availableCredit.get() <= 0) {
-                        Thread.sleep(10);
-                        continue;
-                    }
-
-                    // 模拟数据生产耗时
-                    int sleep = random.nextInt(100) < 5 ? 200 : 10;
-                    TimeUnit.MILLISECONDS.sleep(sleep);
-
-                    // 构造数据
-                    String payload = "Flink-Netty-Record-" + (++seq);
-                    NetworkBuffer buffer = new NetworkBuffer(payload);
-
-                    // 消耗 Credit
-                    availableCredit.decrementAndGet();
-
-                    // 发送
-                    ctx.writeAndFlush(new NettyMessage.BufferResponse(buffer, seq, 0));
-                }
-            } catch (Exception e) {
-                log.error("[Server] 数据生成线程异常", e);
-            }
-        }, "MiniFlink-DataProducer").start();
+    @Override
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+        LOG.error("服务端发生异常", cause);
+        ctx.close();
     }
 }
