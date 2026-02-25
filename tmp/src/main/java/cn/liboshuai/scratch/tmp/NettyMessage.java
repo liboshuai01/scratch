@@ -1,4 +1,4 @@
-package cn.liboshuai.scratch.flink.mini.netty;
+package cn.liboshuai.scratch.tmp;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
@@ -8,22 +8,24 @@ import io.netty.channel.ChannelPromise;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import lombok.Getter;
 
+import java.io.ObjectStreamClass;
+
 /**
  * Flink 网络栈通信的统一消息基类及编解码器集合。
- * 这是读懂 Flink Netty 源码最重要的一张“蓝图”。
+ * 这是读懂 Flink Netty 源码最重要的一张“蓝图”
  */
 public abstract class NettyMessage {
-
-    // Frame Length (4) + Magic Number (4) + Msg ID (1)
+    // Frame length (4) + Magic Number (4) + Msg ID (1)
     static final int FRAME_HEADER_LENGTH = 4 + 4 + 1;
-    // Flink 的魔数，用来校验数据包合法性 (谐音 Bad Coffee)
+    // Flink的魔数，用于效验数据包合法性（谐音 Bad Coffee）
     static final int MAGIC_NUMBER = 0xBADC0FFE;
 
     /**
-     * 让子类自己决定如何将内容写入 ByteBuf 中。
+     * 让子类自己决定如何将内容写入 ByteBuff 中。
      */
     abstract void write(ChannelHandlerContext ctx, ChannelPromise promise,
                         ByteBufAllocator allocator) throws Exception;
+
 
     /**
      * 辅助分配器：预留了 Header 空间，并帮我们写好 Length 和 Magic。
@@ -37,38 +39,36 @@ public abstract class NettyMessage {
         buffer.writeInt(totalLength);
         // 2. 写入魔数
         buffer.writeInt(MAGIC_NUMBER);
-        // 3. 写入消息 ID
+        // 3. 写入消息ID
         buffer.writeByte(id);
 
         return buffer;
     }
 
     // =================================================================================
-    //  子类：PartitionRequest (客户端向服务端请求拉取数据)
-    // =================================================================================
+    // 子类：PartitionRequest（客户端向服务端请求拉取数据）
     public static class PartitionRequest extends NettyMessage {
         static final byte ID = 2;
-        final ResultPartitionID partitionId;
+        final ResultPartitionID partitionID;
         final InputChannelID receiverId;
         final int credit; // 简化的流控 credit
 
-        public PartitionRequest(ResultPartitionID partitionId, InputChannelID receiverId,
-                                int credit) {
-            this.partitionId = partitionId;
+        public PartitionRequest(ResultPartitionID partitionID, InputChannelID receiverId, int credit) {
+            this.partitionID = partitionID;
             this.receiverId = receiverId;
             this.credit = credit;
         }
 
         @Override
-        void write(ChannelHandlerContext ctx, ChannelPromise promise, ByteBufAllocator allocator) {
+        void write(ChannelHandlerContext ctx, ChannelPromise promise, ByteBufAllocator allocator) throws Exception {
             int contentLength = ResultPartitionID.getByteBufLength() + InputChannelID.getByteBufLength() + Integer.BYTES;
             ByteBuf buf = allocateBuffer(allocator, ID, contentLength);
 
-            partitionId.writeTo(buf);
+            partitionID.writeTo(buf);
             receiverId.writeTo(buf);
             buf.writeInt(credit);
 
-            ctx.write(buf, promise); // 注意这里交由 context 写出
+            ctx.write(buf, promise); // 注意这里交由 contexts 写出
         }
 
         static PartitionRequest readFrom(ByteBuf buffer) {
@@ -80,14 +80,15 @@ public abstract class NettyMessage {
     }
 
     // =================================================================================
-    //  子类：BufferResponse (服务端向客户端发送真实数据缓冲)
+    // 子类：BufferResponse（服务端向客户端发送真实数据缓冲）
     // =================================================================================
     public static class BufferResponse extends NettyMessage {
+
         static final byte ID = 0;
         final InputChannelID receiverId;
         final int sequenceNumber; // 包序号
         @Getter
-        final ByteBuf buffer;     // 数据载体
+        final ByteBuf buffer;
 
         public BufferResponse(InputChannelID receiverId, int sequenceNumber, ByteBuf buffer) {
             this.receiverId = receiverId;
@@ -96,12 +97,12 @@ public abstract class NettyMessage {
         }
 
         @Override
-        void write(ChannelHandlerContext ctx, ChannelPromise promise, ByteBufAllocator allocator) {
+        void write(ChannelHandlerContext ctx, ChannelPromise promise, ByteBufAllocator allocator) throws Exception {
             int headerLength = InputChannelID.getByteBufLength() + Integer.BYTES;
             // 数据的真实大小
             int dataLength = buffer.readableBytes();
 
-            // 为了简易，我们这里合成分配一整块 Buffer（Flink 源码为了零拷贝会使用 CompositeByteBuf 或直接分别 write）
+            // 为了简易，我们这里合成分配一整块 Buffer（Flink 源码为了零拷贝会使用 ComposeiteByteBuf 或直接分别 write）
             ByteBuf outBuf = allocateBuffer(allocator, ID, headerLength + dataLength);
 
             receiverId.writeTo(outBuf);
@@ -117,18 +118,16 @@ public abstract class NettyMessage {
             InputChannelID receiverId = InputChannelID.fromByteBuf(in);
             int seqNum = in.readInt();
 
-            // 将剩余数据当做真实数据 Buffer (这需要分配新空间拷贝以避免 release 错误，
-            // 简易实现直接 readBytes)
+            // 将剩余数据当做真实数据 Buffer（这需要分配新空间拷贝以避免 release 错误，简易实现直接 readBytes）
             ByteBuf dataBuf = in.alloc().buffer(in.readableBytes());
             in.readBytes(dataBuf);
 
             return new BufferResponse(receiverId, seqNum, dataBuf);
         }
-
     }
 
     // =================================================================================
-    //  消息统一编码器 (ChannelOutboundHandlerAdapter)
+    // 消息统一编码器（ChannelOutboundHandlerAdapter)
     // =================================================================================
     public static class NettyMessageEncoder extends ChannelOutboundHandlerAdapter {
         @Override
@@ -143,16 +142,17 @@ public abstract class NettyMessage {
     }
 
     // =================================================================================
-    //  消息统一解码器 (基于 LengthFieldBasedFrameDecoder 解决粘包)
+    // 消息统一解码器（基于 LengthFieldBasedFrameDecoder 解决粘包）
     // =================================================================================
     public static class NettyMessageDecoder extends LengthFieldBasedFrameDecoder {
+
         public NettyMessageDecoder() {
-            /*
-             * Flink 经典的配置:
-             * lengthFieldOffset = 0    (长度在开头)
-             * lengthFieldLength = 4    (int占4字节)
-             * lengthAdjustment = -4    (由于写入的 length 包含了自身长度，而 Netty 默认不包含，需要调整回去)
-             * initialBytesToStrip = 4  (把 4 个字节的 length 字段剥离掉，丢弃)
+            /**
+             * Flink 经典的配置：
+             * lengthFieldOffset = 0    （长度在开头）
+             * lengthFieldLength = 4    （int占4字节）
+             * lengthAdjustment = -4    （由于写入的 length 包含了自身长度，而 Netty 默认不包含，需要调整回去）
+             * initialBytesToStrip = 4  （把 4 个字节的 length 字段剥离掉，丢弃）
              */
             super(Integer.MAX_VALUE, 0, 4, -4, 4);
         }
@@ -188,4 +188,30 @@ public abstract class NettyMessage {
             }
         }
     }
+
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
